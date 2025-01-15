@@ -1,0 +1,123 @@
+{
+    "model" : {
+        "RandomForestClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 4,
+                "max_value" : 100 
+            },
+            "max_features" : {
+                "value_type" : "float",
+                "min_value" : 0.1,
+                "max_value" : 1.0 
+            },
+            "criterion" : {
+                "value_type" : "category",
+                "possible_values" : ["gini", "entropy"]
+            }
+        },
+        "KNeighborsClassifier" : {
+            "n_neighbors" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 10 
+
+            },
+            "weights" : {
+                "value_type" : "category",
+                "possible_values" : ["uniform", "distance"]
+            }
+        },
+        "DecisionTreeClassifier" : {
+            "criterion" : {
+                "value_type" : "category",
+                "possible_values" : ["gini", "entropy"]
+            },
+            "splitter" : {
+                "value_type" : "category",
+                "possible_values" : ["best", "random"]
+            },
+            "min_samples_split" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            }
+        },
+        "GaussianNB" : {},
+        "AdaBoostClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 100 
+            },
+            "learning_rate" : {
+                "value_type" : "float",
+                "min_value" : 0.25,
+                "max_value" : 1.0
+            }
+        },
+        "XGBClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 100 
+            },
+            "max_depth" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 30 
+            }
+        },
+        "LogisticRegression" : {
+            "C" : {
+                "value_type" : "float",
+                "min_value" : 0.03125,
+                "max_value" : 32768.0
+            },
+            "penalty" : {
+                "value_type" : "category",
+                "possible_values" : ["l1", "l2", "elasticnet"]
+            }
+        }
+    },
+    "numerical-imputer" : {
+        "SimpleImputer" : {
+            "strategy" : {
+                "value_type" : "category",
+                "possible_values" : ["mean", "median", "most_frequent"]
+            },
+            "add_indicator" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            }
+        },
+        "KNNImputer" : {
+            "n_neighbors" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 7 
+    
+            }
+        }
+    },
+    "categorical-imputer" : {
+        "SimpleImputer" : {
+            "strategy" : {
+                "value_type" : "category",
+                "possible_values" : ["most_frequent"]
+            },
+            "add_indicator" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            }
+        }
+    },
+    "encoder" : {
+        "OneHotEncoder" : {
+            "drop" : {
+                "value_type" : "category",
+                "possible_values" : ["first", "if_binary", null]
+            }
+        }
+    }
+}
