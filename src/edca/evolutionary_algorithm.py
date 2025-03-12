@@ -170,6 +170,7 @@ class EvolutionarySearch:
         self.patience = patience
         self.early_stop = early_stop
         self.verbose = verbose
+        self.number_evaluated_individuals = 0
 
         # whither to use parallel or sequential search
         if self.n_jobs == 1:
@@ -180,15 +181,10 @@ class EvolutionarySearch:
         # setup save variables
         self.best_fit= None
         self.best_individual = None
-        self.bests_fitness = []
-        self.average_fitness = []
-        self.bests_config = []
-        self.bests_inv_metric = []
-        self.bests_train_percentage = []
-        self.bests_time_cpu = []
-        self.bests_sample_percentage = []
-        self.bests_feature_percentage = []
-        self.bests_balance_metric = []
+        self.best_fitness_params = None
+
+        self.bests_info = {}
+
         self.filepath = filepath
 
         # save individuals fitness and components no avoid retraining
@@ -196,12 +192,13 @@ class EvolutionarySearch:
             columns=[
                 'config',
                 'fitness',
-                'inv_metric',
+                'search_metric',
                 'train_percentage',
                 'time_cpu',
-                'sample_percentage',
-                'feature_percentage',
-                'balance_metric']
+                'samples_percentage',
+                'features_percentage',
+                'balance_metric',
+                'proportion_per_class']
         )
 
         # file to save populations
@@ -226,24 +223,15 @@ class EvolutionarySearch:
 
     def save_evaluated_individuals(self):
         """ Saves the evaluated individuals """
-        self._individuals_fitness_df.to_csv(
-            os.path.join(
-                self.filepath,
-                'evaluated_individuals.csv'))
+        self._individuals_fitness_df.to_csv(os.path.join(self.filepath,'evaluated_individuals.csv'))
 
     def _save_population(self, filename):
         """ Saves the population of one generation"""
-        df = pd.DataFrame(self.population)
-        df.columns = [
-            'Individual',
-            'Fitness',
-            'InvMetric',
-            'TrainPercentage',
-            'CPUTime',
-            'SamplePercentage',
-            'FeaturePercentage',
-            'BalanceMetric']
-        df['Individual'] = list(range(1, len(self.population) + 1))
+        population = []
+        for _, fitness_params in self.population:
+            population.append(fitness_params)
+        df = pd.DataFrame(population)
+        df.insert(0, 'individual', list(range(1, len(self.population) + 1)))
         df.to_csv(
             os.path.join(
                 self.pops_path,
@@ -260,60 +248,30 @@ class EvolutionarySearch:
     def _check_time_limit(self):
         """ Tests it it as reached the limit time budget """
         if self.time_budget != -1:
-            seconds_elapsed = (
-                datetime.now() -
-                self._start_datetime).total_seconds()
+            seconds_elapsed = (datetime.now() - self._start_datetime).total_seconds()
 
             if seconds_elapsed >= self.time_budget:
                 raise TimeBudgetExceeded(
                     "{:.2f} seconds have elapsed. It will close down.".format(seconds_elapsed))
 
-    def _add_individual_to_evaluated(
-            self,
-            string_individual,
-            fit,
-            inv_metric,
-            train_percentage,
-            cpu_time,
-            sample_percentage,
-            feature_percentage, balance_metric):
+    def _add_individual_to_evaluated(self, string_individual, fitness_params):
         """ Stores the evaluated individual and its results to avoid repeating evaluations"""
-        self._individuals_fitness_df = pd.concat(
-            [
-                self._individuals_fitness_df,
-                pd.DataFrame(
-                    dict(
-                        config=[string_individual],
-                        fitness=fit,
-                        inv_metric=inv_metric,
-                        train_percentage=train_percentage,
-                        time_cpu=cpu_time,
-                        sample_percentage=sample_percentage,
-                        feature_percentage=feature_percentage,
-                        balance_metric=balance_metric
-                    )
-                )
-            ],
-            axis=0,
-            ignore_index=True
-        )
+        aux = {'config' : [string_individual]}
+        aux_config = {**aux, **fitness_params}
+        self._individuals_fitness_df = pd.concat([self._individuals_fitness_df,pd.DataFrame(aux_config)], axis=0,ignore_index=True)
 
     def _evaluate_population_parallel(self, population):
         """ Evaluates the population in parallel based on the number of workers"""
         # sort individuals config
-        population = deepcopy(population)
-        for index, individual in enumerate(population):
-            aux = list(individual)
-            aux[0] = sort_dict(aux[0])
-            population[index] = tuple(aux)
+        population = sort_individuals_configs(population)
         
         self.population_evaluated = []
         evaluated_individuals = {}  # to store the individuals evaluated
         with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
             try:
                 # iterate over the population and start processes
-                for individual in population:
-                    string_individual = str(individual[0])
+                for (individual_config, fitness_params) in population:
+                    string_individual = str(individual_config)
                     # search for individual in the pool evaluated
                     equal_indiv = self._individuals_fitness_df.loc[
                         self._individuals_fitness_df.config == string_individual]
@@ -321,18 +279,21 @@ class EvolutionarySearch:
                         # new individual
                         if string_individual not in evaluated_individuals:
                             # individual is not being tested yet
+                            self.number_evaluated_individuals += 1
                             thread = executor.submit(individual_fitness,
-                                                     self.X_train,
-                                                     self.X_val,
-                                                     self.y_train,
-                                                     self.y_val,
-                                                     self.pipeline_config,
-                                                     self.fitness_metric,
-                                                     individual[0])
+                                self.X_train,
+                                self.X_val,
+                                self.y_train,
+                                self.y_val,
+                                self.pipeline_config,
+                                self.fitness_metric,
+                                individual_config,
+                                self.number_evaluated_individuals
+                            )
                             
                             evaluated_individuals[string_individual] = {
                                 'thread': thread,
-                                'individual': individual[0],
+                                'individual': individual_config,
                                 'count': 1
                             }
                         else:
@@ -340,27 +301,18 @@ class EvolutionarySearch:
                             evaluated_individuals[string_individual]['count'] = evaluated_individuals[string_individual]['count'] + 1
                     else:
                         # already tested individual
-                        fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric = equal_indiv.fitness.values[0], \
-                            equal_indiv.inv_metric.values[0], \
-                            equal_indiv.train_percentage.values[0], \
-                            equal_indiv.time_cpu.values[0], \
-                            equal_indiv.sample_percentage.values[0], \
-                            equal_indiv.feature_percentage.values[0], \
-                            equal_indiv.balance_metric.values[0]
-                        self.population_evaluated.append(
-                            (individual[0], fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric))
+                        fitness_params = get_individual_params(equal_indiv)
+                        self.population_evaluated.append((individual_config.copy(), fitness_params.copy()))
                     self._check_time_limit()
 
                 # iterate over processes evaluated by the threadpoolexecuter
                 string_individuals = list(evaluated_individuals.keys())
                 for string_individual in string_individuals:
                     info = evaluated_individuals.pop(string_individual)
-                    fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric = info['thread'].result()
+                    fitness_params = info['thread'].result()
                     for _ in range(info['count']):
-                        self.population_evaluated.append(
-                            (info['individual'], fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric))
-                        self._add_individual_to_evaluated(
-                            string_individual, fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric)
+                        self.population_evaluated.append((info['individual'], fitness_params))
+                        self._add_individual_to_evaluated(string_individual, fitness_params)
                     self._check_time_limit()
 
             except TimeBudgetExceeded as e:
@@ -374,14 +326,11 @@ class EvolutionarySearch:
 
                 # wait and get results from running threads
                 for string_individual, info in evaluated_individuals.items():
-                    fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric = info['thread'].result(
-                    )
+                    fitness_params = info['thread'].result()
                     # save evaluated individuals in the population
                     for _ in range(info['count']):
-                        self.population_evaluated.append(
-                            (info['individual'], fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric))
-                    self._add_individual_to_evaluated(
-                        string_individual, fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric)
+                        self.population_evaluated.append((info['individual'], fitness_params))
+                    self._add_individual_to_evaluated(string_individual, fitness_params=fitness_params)
 
                 # raise the exception
                 raise TimeBudgetExceeded(e)
@@ -391,62 +340,48 @@ class EvolutionarySearch:
                 # raise the exception
                 raise KeyboardInterrupt(e)
 
-        self.population_evaluated.sort(key=itemgetter(1))
-        return self.population_evaluated
+        return sort_population(self.population_evaluated)
 
     def _evaluate_population_sequential(self, population):
         """ Evaluates the populations based on the fitness function sequentially"""
         ## sort individuals config
-        population = deepcopy(population)
-        for index, individual in enumerate(population):
-            aux = list(individual)
-            aux[0] = sort_dict(aux[0])
-            population[index] = tuple(aux)
+        population = sort_individuals_configs(population)
 
         self.population_evaluated = []
-        for individual in population:
+        for (individual_config, fitness_params) in population:
             # convert individual to string
-            string_individual = str(individual[0])
+            string_individual = str(individual_config)
             # search for individual in the pool evaluated
             equal_indiv = self._individuals_fitness_df.loc[
                 self._individuals_fitness_df.config == string_individual]
             if len(equal_indiv) == 0:
+                self.number_evaluated_individuals += 1
                 # the individual was not found
-                fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric = individual_fitness(
+                fitness_params = individual_fitness(
                     X_train=self.X_train,
                     X_val=self.X_val,
                     y_train=self.y_train,
                     y_val=self.y_val,
                     metric=self.fitness_metric,
                     pipeline_config=self.pipeline_config,
-                    individual=individual[0])
+                    individual=individual_config,
+                    individual_id = self.number_evaluated_individuals)
                 # add individual to pool of evaluated individuals
-                self._add_individual_to_evaluated(
-                    string_individual, fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage)
+                self._add_individual_to_evaluated(string_individual, fitness_params)
             else:
-                fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric = equal_indiv.fitness.values[0], \
-                    equal_indiv.inv_metric.values[0], \
-                    equal_indiv.train_percentage.values[0], \
-                    equal_indiv.time_cpu.values[0], \
-                    equal_indiv.sample_percentage.values[0], \
-                    equal_indiv.feature_percentage.values[0], \
-                    equal_indiv.balance_metric.values[0]
-
+                fitness_params = get_individual_params(equal_indiv)
             # add to the population
-            self.population_evaluated.append(
-                (individual[0].copy(), fit, inv_metric, train_percentage, cpu_time, sample_percentage, feature_percentage, balance_metric))
+            self.population_evaluated.append((individual_config.copy(), fitness_params.copy()))
             self._check_time_limit()
-
-        self.population_evaluated.sort(key=itemgetter(1))
-        return self.population_evaluated
+        # sort population
+        return sort_population(self.population_evaluated)
 
     def _select_survivals(self, offspring):
         """ Select the survivals, based on the elitism size and the offspring"""
         offspring = self._evaluate_population(offspring.copy())
         # applies elitism
         new_pop = self.population[:self.elitism] + offspring[:-self.elitism]
-        new_pop.sort(key=itemgetter(1))
-        return new_pop
+        return sort_population(new_pop)
 
     def evolutionary_algorithm(self):
         self.counter_repeated = 0
@@ -456,6 +391,7 @@ class EvolutionarySearch:
 
         # start time counter
         self._start_datetime = datetime.now()
+        self.pipeline_config['start_datetime'] = time.time()
 
         # create initial population
         self._logger.info('Create Initial Population')
@@ -476,15 +412,17 @@ class EvolutionarySearch:
         self._logger.info('Evaluate Initial Population')
         try:
             self.population = deepcopy(self._evaluate_population(self.population))
-            self.best_fit= self.population[0][1]
+            self.best_fit= self.population[0][1]['fitness']
             self.best_individual = deepcopy(self.population[0][0])
+            self.best_fitness_params = deepcopy(self.population[0][1])
         except KeyboardInterrupt:
             raise KeyboardInterrupt('Ctrl-C pressed')
         except TimeBudgetExceeded as e:
-            self.population_evaluated.sort(key=itemgetter(1))
+            self.population_evaluated = sort_population(self.population_evaluated)
             self.population = deepcopy(self.population_evaluated)
             self.best_individual = deepcopy(self.population[0][0])
-            self.best_fit= self.population[0][1]
+            self.best_fit= self.population[0][1]['fitness']
+            self.best_fitness_params = deepcopy(self.population[0][1])
             self._save_info()
             self._save_population('Initial_Incomplete')
             self._logger.info(
@@ -506,7 +444,7 @@ class EvolutionarySearch:
                         self.population, 
                         k=self.tournament_size
                     )
-                    selected_indiv = tournament(selected_indivs)
+                    selected_indiv = tournament(selected_indivs, sort_function=sort_population)
                     offspring.append(selected_indiv)
                 self._check_time_limit()
 
@@ -514,36 +452,36 @@ class EvolutionarySearch:
                 for i in range(self.population_size - 1):
                     if np.random.random() < self.prob_crossover:
                         a, b = self.crossover_operator(offspring[i][0], offspring[i + 1][0])
-                        offspring[i] = (a, 1, 1, 1, self.pipeline_config.get('time_norm', 1), 1, 1)
-                        offspring[i + 1] = (b, 1, 1, 1, self.pipeline_config.get('time_norm', 1), 1, 1)
+                        offspring[i] = (a, {'fitness': WORST_FITNESS})
+                        offspring[i + 1] = (b, {'fitness': WORST_FITNESS})
                 self._check_time_limit()
 
                 # add mutation
                 for i in range(self.population_size):
                     if np.random.random() < self.prob_mutation:
-                        offspring[i] = (self.mutation_operator(offspring[i][0]), 1, 1, 1, self.pipeline_config.get('time_norm', 1), 1, 1)
+                        offspring[i] = (self.mutation_operator(offspring[i][0]), {'fitness': WORST_FITNESS})
                 self._check_time_limit()
 
                 # select survivals
                 self.population = self._select_survivals(offspring=offspring)
-                # get best
-                best = self.population[0][1]
+                # get best fitness
+                best_info = self.population[0][1]
 
                 # check if its the same best
-                if self.best_fit== best:
+                if self.best_fit== best_info['fitness']:
                     self.counter_repeated += 1  # increment counter
                     self.counter_no_improvement += 1
                 else:
                     self.counter_repeated = 0  # reinitialize counter
                     self.counter_no_improvement = 0
-                    self.best_fit= best
-                best_info = self.population[0]
+                    self.best_fit= best_info['fitness']
                 self.best_individual = deepcopy(self.population[0][0])
+                self.best_fitness_params = deepcopy(self.population[0][1])
 
                 # update logger and save population
                 self.iteration += 1
                 self._logger.info(
-                    f'Iteration {self.iteration} >>> Fitness: {best_info[1]:.3f} - Data%: {best_info[3]:.3f} - Metric: {best_info[2]:.3f} - CPU Time: {best_info[4]:.3f} - S%: {best_info[5]:.3f} - F%: {best_info[6]:.3f} - CDD: {best_info[7]:.3f}')
+                    f"Iteration {self.iteration} >>> Fitness: {best_info['fitness']:.3f} - Data%: {best_info['train_percentage']:.3f} - Metric: {best_info['search_metric']:.3f} - CPU Time: {best_info['time_cpu']:.3f} - S%: {best_info['samples_percentage']:.3f} - F%: {best_info['features_percentage']:.3f} - CDD: {best_info['balance_metric']:.3f}")
                 
                 # save best information
                 self._save_info()
@@ -578,9 +516,9 @@ class EvolutionarySearch:
                     self._logger.info(
                         f'Iteration {self.iteration} >>> Add Sampling component'
                     )
-                    for (indiv,fit,metric,train_percent,time_cpu, s_percent, f_percent, balance_metric) in self.population:
+                    for (indiv,fitness_params) in self.population:
                         indiv['sample'] = self.sampling_generator(size=self.pipeline_config['sampling_size'])
-                        new_pop.append((indiv, fit, metric, train_percent, time_cpu, s_percent, f_percent, balance_metric))
+                        new_pop.append((indiv, fitness_params))
                     self.population = new_pop
                 self._check_time_limit()
         except KeyboardInterrupt:
@@ -598,70 +536,53 @@ class EvolutionarySearch:
         self.save_evaluated_individuals()
         if self.best_fit == WORST_FITNESS:
             self.best_individual = None
+            self.best_fitness_params = None
             self._logger.info('No pipeline was found. All pipelines resulted in error')
         # self.save_plots()
 
     def _save_info(self):
         """ Saves the information about the generation """
-        self.bests_fitness.append(self.population[0][1])
-        self.average_fitness.append(calculate_average_fitness(self.population))
-        self.bests_config.append(self.population[0][0].copy())
-        self.bests_inv_metric.append(self.population[0][2])
-        self.bests_train_percentage.append(self.population[0][3])
-        self.bests_time_cpu.append(self.population[0][4])
-        self.bests_sample_percentage.append(self.population[0][5])
-        self.bests_feature_percentage.append(self.population[0][6])
-        self.bests_balance_metric.append(self.population[0][7])
+        # initial iteration values
+        if 'average_fitness' not in self.bests_info:
+            self.bests_info['average_fitness'] = []
+            self.bests_info['config'] = []
+            for key in self.population[0][1].keys():
+                self.bests_info[key] = []
+        # update values
+        self.bests_info['average_fitness'].append(calculate_average_fitness(self.population))
+        self.bests_info['config'].append(self.population[0][0].copy())
+        for key, value in self.population[0][1].items():
+            self.bests_info[key].append(value)
 
     def save_plots(self):
         """ Makes plots about the evolution over the generations """
         plt.figure(figsize=(15, 10))
-        plt.plot(self.bests_fitness, label='Bests')
-        plt.plot(self.average_fitness, label='Average')
+        plt.plot(self.bests_info['fitness'], label='Bests')
+        plt.plot(self.bests_info['average_fitness'], label='Average')
         plt.legend()
         plt.xlabel('Iteration')
         plt.ylabel('Fitness')
         plt.savefig(os.path.join(self.filepath, 'fitness_evolution.png'))
 
         plt.figure(figsize=(15, 10))
-        plt.plot(self.bests_fitness, label='Bests')
-        plt.plot(self.average_fitness, label='Average')
-        plt.xlim([10, len(self.bests_fitness)])
+        plt.plot(self.bests_info['fitness'], label='Bests')
+        plt.plot(self.bests_info['average_fitness'], label='Average')
+        plt.xlim([10, len(self.bests_info['fitness'])])
         plt.legend()
         plt.xlabel('Iteration')
         plt.ylabel('Fitness')
         plt.savefig(os.path.join(self.filepath, 'zoom_fitness_evolution.png'))
 
         plt.figure(figsize=(15, 10))
-        plt.plot(self.bests_inv_metric, label='Search Metric')
-        plt.plot(self.bests_time_cpu, label='CPU Time')
-        plt.plot(self.bests_train_percentage, label='Train Percentage')
+        plt.plot(self.bests_info['search_metric'], label='Search Metric')
+        plt.plot(self.bests_info['time_cpu'], label='CPU Time')
+        plt.plot(self.bests_info['train_percentage'], label='Train Percentage')
+        plt.plot(self.bests_info['balance_metric'], label='balance')
         plt.legend()
         plt.xlabel('Iteration')
         plt.ylabel('Component Value')
         plt.savefig(os.path.join(self.filepath, 'components_evolution.png'))
-
-        plt.figure(figsize=(15, 10))
-        plt.plot(
-            np.array(
-                self.bests_inv_metric) *
-            self.components.get('alpha'),
-            label='Search Metric')
-        plt.plot(np.array(self.bests_train_percentage) *
-                 self.components.get('beta'), label='Train Percentage')
-        plt.plot(
-            np.array(
-                self.bests_time_cpu) *
-            self.components.get('gama'),
-            label='CPU Time')
-        plt.legend()
-        plt.xlabel('Iteration')
-        plt.ylabel('Component Value')
-        plt.savefig(
-            os.path.join(
-                self.filepath,
-                'components_evolution_by_factor.png'))
-
+        
     def get_number_iterations(self):
         """ returns the number of generations made"""
         return self.iteration
@@ -669,3 +590,19 @@ class EvolutionarySearch:
     def get_number_pipelines_tested(self):
         """ Returns the number of pipelines tested. Equals to the num generations * population size """
         return self.iteration * len(self.population) + len(self.population_evaluated)
+    
+
+
+    
+def sort_population(population):
+        population.sort(key=lambda x: x[1]['fitness'], reverse=False)
+        return population
+
+def get_individual_params(equal_indiv):
+    return equal_indiv.to_dict(orient='records')[0]
+
+def sort_individuals_configs(population):
+    population = deepcopy(population)
+    for index, (individual_config, fitness_params) in enumerate(population):
+        population[index] = (sort_dict(individual_config), fitness_params)
+    return population

@@ -44,6 +44,8 @@ class DataCentricAutoML(BaseEstimator):
                  mutation_size_neighborhood=20,
                  mutation_percentage_change=0.1,
                  retrain_all_data=None,
+                 search_space_config=None,
+                 flaml_ms=False,
                  seed=42):
         """
         Initialization of the class
@@ -147,6 +149,7 @@ class DataCentricAutoML(BaseEstimator):
         # check the type of task
         assert task in ['classification', 'regression'], 'Task must be classification or regression'
         self.task = task
+        self.metric_name = metric
         self.metric = error_metric_function(metric, self.task)
         self.validation_size = validation_size
         self.n_iterations = n_iterations
@@ -179,30 +182,34 @@ class DataCentricAutoML(BaseEstimator):
         self.mutation_size_neighborhood = mutation_size_neighborhood
         self.mutation_percentage_change = mutation_percentage_change
         self.retrain_all_data = retrain_all_data
+        self.flaml_ms = flaml_ms
+
         if self.log_folder_name == None:
             self.log_folder_name = os.path.join(datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
         if self.log_folder_name and os.path.exists(self.log_folder_name) == False:
             os.makedirs(self.log_folder_name)
+            if self.flaml_ms:
+                os.makedirs(os.path.join(self.log_folder_name, 'flaml_integration'))
         self.error_search = False
-        # read models config
-        with open(os.path.join('edca', 'configs', f'{self.task}_models.json'), 'r') as file:
-            self.config_models = json.load(file)
+
+        if isinstance(search_space_config, dict):
+            # received a config search spave
+            self.config_models = search_space_config
+        elif isinstance(search_space_config, str): 
+            # path to the config file
+            with open(os.path.join('edca', 'configs', search_space_config), 'r') as file:
+                self.config_models = json.load(file)
+        else:
+            # setup models is None
+            with open(os.path.join('edca', 'configs', f'{self.task}_models.json'), 'r') as file:
+                self.config_models = json.load(file)
 
     def _save(self):
         """ Saves the configuration used, the best individuals found over the iterations and the class distributions of the sampling data"""
-        # save json config
-
         # save best individuals and fitness components
-        bests = pd.DataFrame()
-        bests['config'] = [json.dumps(config, cls=NpEncoder)
-                           for config in self.search_algo.bests_config]
-        bests['fitness'] = self.search_algo.bests_fitness
-        bests['average'] = self.search_algo.average_fitness
-        bests['inv_metric'] = self.search_algo.bests_inv_metric
-        bests['train_percentage'] = self.search_algo.bests_train_percentage
-        bests['cpu_time'] = self.search_algo.bests_time_cpu
-        bests['sample_percentage'] = self.search_algo.bests_sample_percentage
-        bests['feature_percentage'] = self.search_algo.bests_feature_percentage
+        self.search_algo.bests_info['config'] = [json.dumps(config, cls=NpEncoder) for config in self.search_algo.bests_info['config']]
+        
+        bests = pd.DataFrame(self.search_algo.bests_info)
         bests.index = pd.Series(bests.index, name='Iteration') + 1
         bests.to_csv(os.path.join(self.log_folder_name, 'bests.csv'))
 
@@ -272,6 +279,13 @@ class DataCentricAutoML(BaseEstimator):
         self.pipeline_config['sampling_size'] = self.sampling_size
         self.pipeline_config['fs_size'] = self.fs_size
         self.pipeline_config['task'] = self.task
+        self.pipeline_config['seed'] = self.seed
+        if self.flaml_ms:
+            self.pipeline_config['flaml_ms'] = True
+            self.pipeline_config['search_metric'] = self.metric_name
+            self.pipeline_config['time_budget'] = self.time_budget
+            self.pipeline_config['flaml_save_dir'] = os.path.join(self.log_folder_name, 'flaml_integration')
+
         # optimisation process
         self._search_algorithm(
                 X_train=self.internal_x_train,
@@ -287,6 +301,10 @@ class DataCentricAutoML(BaseEstimator):
         else:
 
             self.best_individual = self.search_algo.best_individual.copy()
+            ## add FLAML config of the best model
+            if self.flaml_ms:
+                self.best_individual['flaml_estimator'] = self.search_algo.best_fitness_params['flaml_estimator']
+                self.best_individual['flaml_estimator_config'] = self.search_algo.best_fitness_params['flaml_estimator_config']
             
             # convert indices for general dataset
             if 'sample' in self.best_individual:
@@ -308,6 +326,7 @@ class DataCentricAutoML(BaseEstimator):
             self.pipeline_estimator = PipelineEstimator(
                 individual_config=self.final_individual,
                 pipeline_config=self.pipeline_config,
+                individual_id='best_individual'
             )
 
             self.pipeline_estimator.fit(self.X_train, self.y_train)

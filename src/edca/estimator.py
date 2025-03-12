@@ -5,7 +5,11 @@ from sklearn.preprocessing import LabelEncoder
 from sdv.metadata import SingleTableMetadata
 import pandas as pd
 import logging
-
+from flaml import AutoML
+import time
+import json
+import os
+import time
 # setup config
 from sklearn import set_config
 set_config(transform_output='pandas')
@@ -18,7 +22,7 @@ class PipelineEstimator(BaseEstimator):
 
     """
 
-    def __init__(self, individual_config, pipeline_config=None):
+    def __init__(self, individual_config, pipeline_config=None, seed=None, individual_id=None):
         """
         Initialization
 
@@ -44,8 +48,16 @@ class PipelineEstimator(BaseEstimator):
         """
         self.individual_config = individual_config
         self.pipeline_config = pipeline_config
+        self.seed = seed
+        self.individual_id = individual_id
+        # time variables
+        self.model_training_time = None
+        self.data_processing_time = None
+        self.train_time = None # all the time spent in training the model (model training time + data processing time)
+        self.prediction_time = None # time spent in predicting the model
 
-    def fit(self, X, y):
+
+    def fit(self, X, y, seed=42):
         """
         Train the individual / pipeline based on the received data
 
@@ -67,11 +79,14 @@ class PipelineEstimator(BaseEstimator):
         # analyse dataset if pipeline config is null
         if self.pipeline_config is None:
             self.pipeline_config = dataset_analysis(X)
+            self.pipeline_config['seed'] = seed
         self.X = X.copy()
         self.y = y.copy()
         self.X_train = X.copy()
         self.y_train = y.copy()
-
+        
+        # start data processing
+        start_time = time.time()
         self.X_train, self.y_train, self.selected_features = get_selected_data(self.X_train, self.y_train, self.individual_config)
 
         # data augmentation
@@ -113,9 +128,49 @@ class PipelineEstimator(BaseEstimator):
             self.y_encoder = LabelEncoder()
             self.y_train_encoded = self.y_encoder.fit_transform(self.y_train)
 
+        # end data processing
+        self.data_processing_time = time.time() - start_time
+
         # create the model
-        self.model = instantiate_model(self.individual_config.get('model'))
-        self.model.fit(self.X_training, self.y_train_encoded)
+        start_time = time.time()
+        if self.pipeline_config.get('flaml_ms', False) == False:
+            self.model = instantiate_model(self.individual_config.get('model'), seed=self.pipeline_config.get('seed'))
+            self.model.fit(self.X_training, self.y_train_encoded)
+
+        else:
+            # use FLAML
+            settings = {
+                'task': self.pipeline_config['task'],
+                'metric': self.pipeline_config['search_metric'],
+                'keep_search_state': True,
+                'sample': False,
+                'retrain_full': False,
+                'model_history': False,
+                'early_stop': True,
+                'n_jobs': 1,
+                'skip_transform': True,
+                'verbose': 0,
+                'seed': self.pipeline_config['seed'],
+                'max_iter' : 30, # !CHANGE THIS!
+                'auto_augment' : False,
+                'estimator_list' : ['lgbm', 'xgboost', 'xgb_limitdepth', 'rf', 'lrl1', 'lrl2', 'kneighbor', 'extra_tree'],
+                'time_budget' : self.pipeline_config['time_budget'] - (time.time() - self.pipeline_config['start_datetime']),
+                'log_type' : 'all',
+                'log_file_name' : os.path.join(self.pipeline_config['flaml_save_dir'], f'individual_{self.individual_id}.log'),
+            }
+
+            if 'flaml_estimator' in self.individual_config:
+                # retrain best FLAML model
+                settings['estimator_list'] = [self.individual_config['flaml_estimator']]
+                settings['starting_points'] = {self.individual_config['flaml_estimator'] : json.loads(self.individual_config['flaml_estimator_config'])}
+                settings['max_iter'] = 1
+                settings['log_file_name'] = ''
+                
+            self.model = AutoML(**settings)
+            self.model.fit(X_train=self.X_training, y_train=self.y_train_encoded, seed=self.pipeline_config['seed'])
+        
+        self.model_training_time = time.time() - start_time
+        self.train_time = self.model_training_time + self.data_processing_time
         return self
 
     def predict(self, X):
@@ -134,6 +189,8 @@ class PipelineEstimator(BaseEstimator):
             numpy.array
                 predictions
         """
+        # start prediction time
+        start_time = time.time()
         X_test = X.copy()
         X_test = X_test[self.selected_features]
         X_test = self.pipeline.transform(X_test)
@@ -141,6 +198,7 @@ class PipelineEstimator(BaseEstimator):
         # decode the target class for classification tasks
         if self.pipeline_config['task'] == 'classification':
             preds = self.y_encoder.inverse_transform(preds)
+        self.prediction_time = time.time() - start_time
         return preds
 
     def predict_proba(self, X):

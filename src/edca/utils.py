@@ -1,6 +1,7 @@
 from sklearn import metrics
 import numpy as np
 
+
 def mcc_metric(y_true, y_pred, y_prob=None):
     """ Calculate the Matthews Correlation Coefficient normalized and inverted """
     mcc_normalized = (metrics.matthews_corrcoef(y_true, y_pred)+1)/2

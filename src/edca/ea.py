@@ -283,10 +283,7 @@ def mutation_individuals(
 # GENERATE INDIVIDUALS
 
 
-def generate_individual(
-        config,
-        pipeline_config,
-        sampling_generator):
+def generate_individual(config, pipeline_config, sampling_generator):
     """
     Generates an individual
 
@@ -351,15 +348,13 @@ def generate_individual(
     if len(pipeline_config['categorical_columns']) > 0:
         individual['encoder'] = generate_model_code(config['encoder'])
 
-    individual['model'] = generate_model_code(config['model'])
-    return (individual, 1, 1, 1, pipeline_config.get('time_norm', 1), 1, 1)
+    if not pipeline_config.get('flaml_ms', False): 
+        # if the flaml model selection is activated, it does not uses the model gene
+        individual['model'] = generate_model_code(config['model'])
+    return (individual, {'fitness' : 1})
 
 
-def generate_population(
-        pop_size,
-        config,
-        pipeline_config,
-        sampling_generator):
+def generate_population(pop_size, config, pipeline_config, sampling_generator):
     """
     Generates the population
 
@@ -387,14 +382,10 @@ def generate_population(
     list
         EA population
     """
-    return [
-        generate_individual(
-            config,
-            pipeline_config,
-            sampling_generator) for _ in range(pop_size)]
+    return [generate_individual(config, pipeline_config, sampling_generator) for _ in range(pop_size)]
 
 
-def tournament(individuals):
+def tournament(individuals, sort_function):
     """
     Tournament selection
 
@@ -410,7 +401,7 @@ def tournament(individuals):
     dict
         Best individual
     """
-    individuals.sort(key=itemgetter(1))
+    individuals = sort_function(individuals)
     return deepcopy(individuals[0])
 
 
@@ -428,7 +419,7 @@ def calculate_average_fitness(population):
     float
         Mean fitness of the population
     """
-    return np.mean([indiv[1] for indiv in population])
+    return np.mean([indiv[1]['fitness'] for indiv in population])
 
 
 def generate_sampling_component(binary_representation=True):
