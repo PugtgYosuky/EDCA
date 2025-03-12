@@ -169,3 +169,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# mac options
+.DS_Store
+
+# ignore computer dependent file to store saving location
+config_variables.py
+
+# ignore test files
+tests/
