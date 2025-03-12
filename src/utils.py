@@ -5,6 +5,8 @@ import json
 import time
 import os
 from datetime import datetime
+
+from evaluation_metrics import *
 from sklearn.base import clone  # to clone models
 from sklearn.preprocessing import LabelEncoder  # to encode y
 from sklearn.model_selection import StratifiedKFold, train_test_split, PredefinedSplit  # to divide data
@@ -21,7 +23,6 @@ from flaml import AutoML
 from tpot import TPOTClassifier
 from tpot.export_utils import set_param_recursive
 from edca.evodata import DataCentricAutoML
-
 # setup sklearn to use pandas.DataFrame as output
 from sklearn import set_config
 set_config(transform_output='pandas')
@@ -31,95 +32,47 @@ def add_value_to_dict(dictionary, key, value):
     dictionary[key] = dictionary.get(key, []) + [value]
 
 
-def append_metrics(
-        automl_framework,
-        results,
-        y_test,
-        preds,
-        proba_preds,
-        final_data_size,
-        original_data_size,
-        cdd=None, 
-        error=False):
+def append_metrics(automl_framework, results, y_test, preds, proba_preds, final_data_size, original_data_size, class_proportions, cdd=None, error=False):
     # write as none if it has an error
     variables_names = [
-        '_sample_%',
-        '_samples_used',
-        '_features_%',
-        '_features_used',
-        '_data_%',
-        'data_size',
-        '_cdd',
-        '_roc_auc',
-        '_logloss',
-        '_f1',
-        '_mcc',
-        '_roc_auc_per_sample',
-        '_logloss_per_sample',
-        '_f1_per_sample',
-        '_mcc_per_sample',
-        '_tp',
-        '_tn',
-        '_fp',
-        '_fn']
+        # data used
+        '_sample_%','_samples_used','_features_%','_features_used','_data_%','data_size','_cdd', '_class_proportions',
+        # metrics
+        '_roc_auc','_logloss','_f1','_mcc',
+        # per sample
+        '_roc_auc_per_sample','_logloss_per_sample','_f1_per_sample','_mcc_per_sample',
+        # per confusion matrix
+        '_tp', '_tn','_fp','_fn'
+    ]
     if error:
         for var in variables_names:
             add_value_to_dict(results, f'{automl_framework}{var}', None)
         return
+    
     # calculate data percentages
     final_sample_size, final_features_size = final_data_size
     original_sample_size, original_features_size = original_data_size
-    data_percentage = (final_sample_size * final_features_size) / \
-        (original_sample_size * original_features_size)
+    data_percentage = (final_sample_size * final_features_size) / (original_sample_size * original_features_size)
     sample_percentage = final_sample_size / original_sample_size
     features_percentage = final_features_size / original_features_size
 
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_sample_%',
-        sample_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_features_%',
-        features_percentage)
+    add_value_to_dict(results, f'{automl_framework}_sample_%', sample_percentage)
+    add_value_to_dict(results, f'{automl_framework}_features_%', features_percentage)
     add_value_to_dict(results, f'{automl_framework}_data_%', data_percentage)
     add_value_to_dict(results, f'{automl_framework}_cdd', cdd)
-    add_value_to_dict(
-        results, f'{automl_framework}_final_data_size', [
-            final_sample_size, final_features_size])
-    add_value_to_dict(results, f'{automl_framework}_original_data_size', [
-                      original_sample_size, original_features_size])
+
+    add_value_to_dict(results, f'{automl_framework}_final_data_size', [final_sample_size, final_features_size])
+    add_value_to_dict(results, f'{automl_framework}_original_data_size', [original_sample_size, original_features_size])
+
+    add_value_to_dict(results, f'{automl_framework}_class_proportions', json.dumps(class_proportions))
 
     # calculate metrics
 
     f1 = metrics.f1_score(y_test, preds, average='weighted')
     add_value_to_dict(results, f'{automl_framework}_f1', f1)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_f1_per_data',
-        f1 / data_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_f1_per_sample',
-        f1 / sample_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_f1_per_feature',
-        f1 / features_percentage)
+    
     mcc = metrics.matthews_corrcoef(y_test, preds)
     add_value_to_dict(results, f'{automl_framework}_mcc', mcc)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_mcc_per_data',
-        mcc / data_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_mcc_per_sample',
-        mcc / sample_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_mcc_per_feature',
-        mcc / features_percentage)
 
     # calculate # class dependent metrics
     if len(y_test.unique()) == 2:
@@ -139,35 +92,7 @@ def append_metrics(
         log_loss = metrics.log_loss(y_test, proba_preds)
 
     add_value_to_dict(results, f'{automl_framework}_roc_auc', roc_auc)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_roc_auc_per_data',
-        roc_auc / data_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_roc_auc_per_sample',
-        roc_auc / sample_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_roc_auc_per_feature',
-        roc_auc /
-        features_percentage)
     add_value_to_dict(results, f'{automl_framework}_logloss', log_loss)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_logloss_per_data',
-        log_loss /
-        data_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_logloss_per_sample',
-        log_loss /
-        sample_percentage)
-    add_value_to_dict(
-        results,
-        f'{automl_framework}_logloss_per_feature',
-        log_loss /
-        features_percentage)
 
 
 def get_openml_splits(task_id):
@@ -178,12 +103,8 @@ def get_openml_splits(task_id):
     data_splits = []
     for fold in range(len(split_data[0])):
         data_splits.append(
-            (
-                split_data[0][fold][0].train,
-                split_data[0][fold][0].test
-            )
+            (split_data[0][fold][0].train, split_data[0][fold][0].test)
         )
-
     return data_splits
 
 
@@ -195,23 +116,18 @@ def get_kfold_splits(df, y, k=5, seed=42):
     return data_splits
 
 
-def retrain_edca_from_data(
-        name,
-        automl,
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        results):
+def retrain_edca_from_data(name, automl, X_train, y_train, X_test, y_test, results, save_name, drop_drs=['sample', 'features']):
+    
     individual = automl.get_best_individual().copy()
-    if 'sample' in individual:
-        _ = individual.pop('sample')  # remove sample component
-    if 'features' in individual:
-        _ = individual.pop('features')  # remove features component
+
+    for dr in drop_drs:
+        if dr in individual:
+            _ = individual.pop(dr)
 
     pipeline_estimator = PipelineEstimator(
         individual_config=individual,
         pipeline_config=automl.pipeline_config,
+        individual_id=name
     )
 
     pipeline_estimator.fit(X_train, y_train)
@@ -226,19 +142,19 @@ def retrain_edca_from_data(
         proba_preds=proba_preds,
         final_data_size=X_train.shape,
         original_data_size=X_train.shape,
-        cdd=class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique())
+        cdd=class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique()),
+        class_proportions=y_train.value_counts().to_dict()
+    )
+
+    save_predictions(
+        filename=save_name,
+        y_test=y_test,
+        y_preds=preds,
+        y_preds_proba=proba_preds
     )
 
 
-def evo_train(
-        results,
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        config,
-        evo_path,
-        fold):
+def evo_train( results, X_train, y_train, X_test, y_test, config, evo_path, fold):
 
     has_error = False
     start = time.time()  # start counter
@@ -276,6 +192,8 @@ def evo_train(
         validation_size=config.get('validation_size', 0.25),
         mutation_size_neighborhood=config.get('mutation_size_neighborhood', 10),
         mutation_percentage_change=config.get('mutation_percentage_change', 0.1),
+        search_space_config=config.get('search_space_config', None),
+        flaml_ms=config.get('flaml_ms', False),
     )
 
     try:
@@ -298,22 +216,17 @@ def evo_train(
             proba_preds=evo_proba_preds,
             final_data_size=final_data_shape,
             original_data_size=X_train.shape,
-            cdd=class_distribution_distance(np.array(final_y.value_counts(normalize=True)), y_train.nunique())
+            cdd=class_distribution_distance(np.array(final_y.value_counts(normalize=True)), y_train.nunique()),
+            class_proportions=final_y.value_counts().to_dict()
         )
 
         # save predictions
-        predictions_df = pd.DataFrame(
-            evo_proba_preds, columns=[
-                f'y_proba_{i}' for i in range(
-                    evo_proba_preds.shape[1])])
-        predictions_df.insert(0, 'y_test', list(y_test))
-        predictions_df.insert(1, 'y_pred', evo_preds)
-        predictions_df.to_csv(
-            os.path.join(
-                evo_path,
-                'predictions',
-                f'evo_predictions_{fold+1}.csv'),
-            index=False)
+        save_predictions(
+            filename=os.path.join(evo_path, 'predictions',f'evo_predictions_{fold+1}.csv'),
+            y_test=y_test,
+            y_preds=evo_preds,
+            y_preds_proba=evo_proba_preds
+        )
 
         add_value_to_dict(
             results,
@@ -329,7 +242,7 @@ def evo_train(
             evo_automl.get_best_individual())
 
         # retrain with the hole dataset
-        if config.get('sampling') or config.get('feature_selection'):
+        if config.get('sampling', False) and config.get('feature_selection', False):
             retrain_edca_from_data(
                 name='evo_all_data',
                 automl=evo_automl,
@@ -337,7 +250,33 @@ def evo_train(
                 y_train=y_train,
                 X_test=X_test,
                 y_test=y_test,
-                results=results
+                results=results,
+                save_name=os.path.join(evo_path, 'predictions', f'evo_all_data_predictions_{fold+1}.csv'),
+                drop_drs=['sample', 'features']
+            )
+        if config.get('sampling', False):
+            retrain_edca_from_data(
+                name='evo_all_samples',
+                automl=evo_automl,
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                y_test=y_test,
+                results=results,
+                save_name=os.path.join(evo_path, 'predictions', f'evo_all_samples_predictions_{fold+1}.csv'),
+                drop_drs=['sample']
+            )
+        if config.get('feature_selection', False):
+            retrain_edca_from_data(
+                name='evo_all_features',
+                automl=evo_automl,
+                X_train=X_train,
+                y_train=y_train,
+                X_test=X_test,
+                y_test=y_test,
+                results=results,
+                save_name=os.path.join(evo_path, 'predictions', f'evo_all_features_predictions_{fold+1}.csv'),
+                drop_drs=['features']
             )
     except KeyboardInterrupt:
         raise KeyboardInterrupt('Ctrl-C pressed')
@@ -351,28 +290,16 @@ def evo_train(
         add_value_to_dict(results, 'evo_num_iterations', None)
         add_value_to_dict(results, 'evo_best', None)
 
-        append_metrics(
-            automl_framework='evo',
-            results=results,
-            y_test=y_test,
-            preds=None,
-            proba_preds=None,
-            final_data_size=None,
-            original_data_size=None,
-            cdd=None,
-            error=True)
+        # add null values
+        add_error_results('evo', results, y_test)
+        if config.get('sampling', False) and config.get('feature_selection', False):
+            add_error_results('evo_all_data', results, y_test)
+        if config.get('sampling', False):
+            add_error_results('evo_all_samples', results, y_test)
+        if config.get('feature_selection', False):
+            add_error_results('evo_all_features', results, y_test)
+
     return evo_automl, has_error
-
-
-def get_flaml_info(filename):
-    # loads the sample size of the best estimator from log file
-    with open(filename, 'r') as file:
-        lines = file.readlines()
-        best_estimator = json.loads(lines[-1])
-        best_id = best_estimator['curr_best_record_id']
-        sample_size = json.loads(lines[best_id])['sample_size']
-        num_iterations = len(lines) - 1
-    return sample_size, num_iterations
 
 
 def retrain_flaml_from_data(automl, X_train, y_train, X_test):
@@ -390,15 +317,7 @@ def retrain_flaml_from_data(automl, X_train, y_train, X_test):
     return preds, proba_preds
 
 
-def flaml_train(
-        results,
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        config,
-        flaml_path,
-        fold):
+def flaml_train(results, X_train, y_train, X_test, y_test, config, flaml_path, fold):
 
     # encode y_train
     y_encoder = LabelEncoder()
@@ -411,11 +330,6 @@ def flaml_train(
         random_state=config.get('seed', 42)
     )
 
-
-    # setup error
-    has_error = False
-    final_data_rows = None
-
     start = time.time()  # start counter
     log_file = os.path.join(flaml_path, f'flaml_fold{fold+1}.log')
 
@@ -427,13 +341,15 @@ def flaml_train(
         hpo_method=config.get('hpo_method', 'cfo'),
         log_file_name=log_file,
         log_type='all',
-        early_stop=config.get('early_stop', None)!=None,
-        sample=config.get('sampling', True),
-        retrain_full=not config.get('sampling', True),
+        early_stop=config.get('early_stop', None)!= None,
+        sample=True, #config.get('sampling', True),
+        retrain_full=False,#not config.get('sampling', True),
         split_ration=config.get('validation_size', 0.9),
         n_jobs=config.get('n_jobs', 1),
         estimator_list=list(sorted(['lgbm', 'xgboost', 'xgb_limitdepth', 'rf', 'lrl1', 'lrl2', 'kneighbor', 'extra_tree'])),
         seed = config.get('seed', 42),
+        keep_search_state=True,
+        model_history=True
     )
 
     if config.get('time_budget', -1) == -1:
@@ -441,19 +357,30 @@ def flaml_train(
         settings['max_iter'] = config.get('n_iterations', 50) # remove: * config.get('population', 25)
 
     flaml_automl = AutoML(**settings)
+
     try:
         flaml_automl.fit(
             X_train=x_train, 
             y_train=y_train,
             X_val=x_val,
-            y_val=y_val)
+            y_val=y_val,
+            sample=config.get('sampling', True))
         end = time.time()  # end counter
+
+        num_iterations = flaml_automl._track_iter
+        best_iter = flaml_automl.best_iteration
+        if flaml_automl._sample:
+            best_flaml_estimator_params = flaml_automl.config_history[best_iter][1]
+            flaml_X, flaml_y, _, _ = flaml_automl._state.prepare_sample_train_data(best_flaml_estimator_params['FLAML_sample_size'])
+            flaml_y = pd.Series(flaml_y)
+        else:
+            flaml_X = flaml_automl._state.X_train
+            flaml_y = pd.Series(flaml_automl._state.y_train)
 
         add_value_to_dict(results, 'flaml_time', end - start)
         flaml_preds = y_encoder.inverse_transform(flaml_automl.predict(X_test))
         flaml_proba_preds = flaml_automl.predict_proba(X_test)
-        final_data_rows, num_iterations = get_flaml_info(log_file)
-
+        
         # save results
         append_metrics(
             automl_framework='flaml',
@@ -461,23 +388,17 @@ def flaml_train(
             y_test=y_test,
             preds=flaml_preds,
             proba_preds=flaml_proba_preds,
-            final_data_size=[final_data_rows, X_train.shape[1]],
+            final_data_size=[flaml_X.shape[0], flaml_X.shape[1]],
             original_data_size=X_train.shape,
-            cdd=class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique())
+            cdd=class_distribution_distance(np.array(flaml_y.value_counts(normalize=True)), flaml_y.nunique()),
+            class_proportions=flaml_y.value_counts().to_dict()
         )
-        # save predictions
-        predictions_df = pd.DataFrame(
-            flaml_proba_preds, columns=[
-                f'y_proba_{i}' for i in range(
-                    flaml_proba_preds.shape[1])])
-        predictions_df.insert(0, 'y_test', y_test)
-        predictions_df.insert(1, 'y_pred', flaml_preds)
-        predictions_df.to_csv(
-            os.path.join(
-                flaml_path,
-                'predictions',
-                f'flaml_predictions_{fold+1}.csv'),
-            index=False)
+        save_predictions(
+            filename=os.path.join(flaml_path, 'predictions',f'flaml_predictions_{fold+1}.csv'),
+            y_test=y_test,
+            y_preds=flaml_preds,
+            y_preds_proba=flaml_proba_preds
+        )
 
         # add metrics
         add_value_to_dict(results, 'flaml_num_iterations', num_iterations)
@@ -497,7 +418,15 @@ def flaml_train(
                 y_train=train_y,
                 X_test=X_test
             )
+
             all_data_preds = y_encoder.inverse_transform(all_data_preds)
+
+            save_predictions(
+                filename=os.path.join(flaml_path, 'predictions',f'flaml_all_data_predictions_{fold+1}.csv'),
+                y_test=y_test,
+                y_preds=flaml_preds,
+                y_preds_proba=flaml_proba_preds
+            )
 
             append_metrics(
                 automl_framework='flaml_all_data',
@@ -507,8 +436,11 @@ def flaml_train(
                 proba_preds=all_data_proba_preds,
                 final_data_size=X_train.shape,
                 original_data_size=X_train.shape,
-                cdd=class_distribution_distance(np.array(train_y.value_counts(normalize=True)), train_y.nunique())
+                cdd=class_distribution_distance(np.array(pd.Series(train_y).value_counts(normalize=True)), pd.Series(train_y).nunique()),
+                class_proportions=pd.Series(train_y).value_counts().to_dict()
             )
+
+        return flaml_automl, False, y_encoder, flaml_X, flaml_y
 
     except KeyboardInterrupt:
         raise KeyboardInterrupt('Ctrl-C pressed')
@@ -522,41 +454,15 @@ def flaml_train(
         add_value_to_dict(results, 'flaml_best_learner', None)
         add_value_to_dict(results, 'flaml_best_config', None)
 
-        append_metrics(
-            automl_framework='flaml',
-            results=results,
-            y_test=y_test,
-            preds=None,
-            proba_preds=None,
-            final_data_size=None,
-            original_data_size=None,
-            cdd=None,
-            error=True)
+        add_error_results('flaml', results, y_test)
 
         if config.get('sampling', True):
-            append_metrics(
-                automl_framework='flaml_all_data',
-                results=results,
-                y_test=y_test,
-                preds=None,
-                proba_preds=None,
-                final_data_size=None,
-                original_data_size=None,
-                cdd=class_distribution_distance(np.array(train_y.value_counts(normalize=True)), train_y.nunique()),
-                error=True)
-    return flaml_automl, has_error, final_data_rows, y_encoder
+            add_error_results('flaml_all_data', results, y_test)
+        
+    return flaml_automl, True, y_encoder, None, None
 
 
-def tpot_train(
-        results,
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        config,
-        tpot_path,
-        fold,
-        seed):
+def tpot_train( results, X_train, y_train, X_test, y_test, config, tpot_path, fold, seed):
     y_encoder = LabelEncoder()
     train_y = y_encoder.fit_transform(y_train)
 
@@ -738,26 +644,21 @@ def tpot_train(
             proba_preds=tpot_proba_preds,
             final_data_size=X_train_transformed.shape,
             original_data_size=X_train.shape,
-            cdd=class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique())
+            cdd=class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique()),
+            class_proportions=y_train.value_counts().to_dict()
         )
 
         # save evaluated individuals
         evaluated_individuals = tpot_automl.evaluated_individuals_
         with open(os.path.join(tpot_path, f'evaluated_individuals_fold_{fold+1}.json'), 'w') as file:
             json.dump(evaluated_individuals, file, cls=NpEncoder, indent=3)
-        # save predictions
-        predictions_df = pd.DataFrame(
-            tpot_proba_preds, columns=[
-                f'y_proba_{i}' for i in range(
-                    tpot_proba_preds.shape[1])])
-        predictions_df.insert(0, 'y_test', y_test)
-        predictions_df.insert(1, 'y_pred', tpot_preds)
-        predictions_df.to_csv(
-            os.path.join(
-                tpot_path,
-                'predictions',
-                f'tpot_predictions_{fold+1}.csv'),
-            index=False)
+
+        save_predictions(
+            filename=os.path.join(tpot_path, 'predictions',f'tpot_predictions_{fold+1}.csv'),
+            y_test=y_test,
+            y_preds=tpot_preds,
+            y_preds_proba=tpot_proba_preds
+        )
 
         # export TPOT best pipeline to json
         # pipeline_json = []
@@ -790,31 +691,12 @@ def tpot_train(
         add_value_to_dict(results, 'tpot_best_pipeline', None)
         add_value_to_dict(results, 'tpot_num_iterations', None)
 
-        append_metrics(
-            automl_framework='tpot',
-            results=results,
-            y_test=y_test,
-            preds=None,
-            proba_preds=None,
-            final_data_size=None,
-            original_data_size=None,
-            cdd=None,
-            error=True)
+        add_error_results('tpot', results, y_test)
 
     return tpot_automl, has_error, y_encoder
 
 
-def train_models(
-        results,
-        X_train,
-        y_train,
-        X_test,
-        y_test,
-        config,
-        path,
-        fold,
-        seed):
-
+def train_models( results, X_train, y_train, X_test, y_test, config, path, fold, seed):
     # save datasets
     if config.get('save_data', False):
         train_data = X_train.copy()
@@ -861,7 +743,7 @@ def train_models(
         if not os.path.exists(flaml_path):
             os.makedirs(flaml_path)
             os.makedirs(os.path.join(flaml_path, 'predictions'))
-        flaml_automl, flaml_error, flaml_sample_size, flaml_y_encoder = flaml_train(
+        flaml_automl, flaml_error, flaml_y_encoder, flaml_X, flaml_y= flaml_train(
             results=results,
             X_train=X_train,
             y_train=y_train,
@@ -892,18 +774,12 @@ def train_models(
         )
         save_results(results, path)
 
-    if config.get(
-        'train_evo', True) and config.get(
-        'train_flaml', True) and (
-            not evo_error) and (
-                not flaml_error):
-        # test combinations
+    if config.get('train_evo', False) and config.get('train_flaml', False) and (not evo_error) and (not flaml_error):
 
         # flaml with EDCA data
-        x_data, y_data = evo_automl.get_best_sample_data()
-
+        x_data, y_data = evo_automl.pipeline_estimator.get_best_sample_data()
         # encode y
-        y_data = flaml_y_encoder.transform(y_data)
+        y_data = pd.Series(flaml_y_encoder.transform(y_data))
 
         print('FLAML with EDCA data')
         flaml_preds, flaml_proba_preds = retrain_flaml_from_data(
@@ -921,32 +797,27 @@ def train_models(
             proba_preds=flaml_proba_preds,
             final_data_size=x_data.shape,
             original_data_size=X_train.shape,
-            cdd=class_distribution_distance(np.array(y_data.value_counts(normalize=True)), y_train.nunique())
+            cdd=class_distribution_distance(np.array(y_data.value_counts(normalize=True)), y_train.nunique()),
+            class_proportions=y_data.value_counts().to_dict()
         )
 
         # train EDCA with FLAML data
-        # get data
-        x_data, _, y_data, _ = train_test_split(
-            X_train, y_train, stratify=y_train, shuffle=True, train_size=flaml_sample_size)
         print('EDCA with FLAML data')
         retrain_edca_from_data(
             name='evo_with_flaml_samples',
             automl=evo_automl,
-            X_train=x_data,
-            y_train=y_data,
+            X_train=flaml_X,
+            y_train=flaml_y,
             X_test=X_test,
             y_test=y_test,
-            results=results
+            results=results,
+            save_name=os.path.join(evo_path, 'predictions', f'evo_with_flaml_samples_predictions_{fold+1}.csv')
         )
         save_results(results, path)
 
-    if config.get(
-        'train_evo', True) and config.get(
-        'train_tpot', True) and (
-            not evo_error) and (
-                not tpot_error):
+    if config.get('train_evo', True) and config.get('train_tpot', True) and (not evo_error) and (not tpot_error):
         # TPOT with EDCA data
-        x_data, y_data = evo_automl.get_best_sample_data()
+        x_data, y_data = evo_automl.pipeline_estimator.get_best_sample_data()
         print('TPOT with EDCA data')
         tpot_preds, tpot_proba_preds = retrain_tpot_from_data(
             automl=tpot_automl,
@@ -963,7 +834,8 @@ def train_models(
             proba_preds=tpot_proba_preds,
             final_data_size=x_data.shape,
             original_data_size=X_train.shape,
-            cdd=class_distribution_distance(np.array(y_data.value_counts(normalize=True)), y_train.nunique())
+            cdd=class_distribution_distance(np.array(y_data.value_counts(normalize=True)), y_train.nunique()),
+            class_proportions=y_data.value_counts().to_dict()
         )
         save_results(results, path)
     save_results(results, path)
@@ -982,107 +854,31 @@ def retrain_tpot_from_data(automl, X_train, y_train, X_test, tpot_y_encoder):
     return preds, proba_preds
 
 
-def evo_mcc_metric(y_test, y_pred):
-    """MCC metric for the evolutionary algorithm"""
-    mcc = metrics.matthews_corrcoef(y_test, y_pred)
-    return 1 - mcc
-
-
-def evo_f1_metric(y_test, y_pred):
-    """F1 metric for the evolutionary algorithm"""
-    f1 = metrics.f1_score(y_test, y_pred, average='weighted')
-    return 1 - f1
-
-
-def evo_metric(metric_name):
-    """Method to select the metric to use on the evolutionary algorithm based on metric's name"""
-    if metric_name == 'mcc':
-        return evo_mcc_metric
-    elif metric_name == 'f1':
-        return evo_f1_metric
-    else:
-        raise ValueError('No metric with that Name')
-
-
-def flaml_f1_metric(
-        X_val,
-        y_val,
-        estimator,
-        labels,
-        X_train,
-        y_train,
-        weight_val=None,
-        weight_train=None,
-        *args):
-    """F1 metric for the flaml framework"""
-    start = time.time()
-    y_pred = estimator.predict(X_val)
-    end = time.time()
-    pred_time = (end - start)
-    f1 = metrics.f1_score(y_val, y_pred, average='weighted')
-    inv_f1 = 1 - f1
-    return inv_f1, {
-        'inv_f1': inv_f1,
-        'f1': f1,
-        'pred_time': pred_time
-    }
-
-
-def flaml_mcc_metric(
-        X_val,
-        y_val,
-        estimator,
-        labels,
-        X_train,
-        y_train,
-        weight_val=None,
-        weight_train=None,
-        *args):
-    """MCC metric for the flaml framework"""
-    start = time.time()
-    y_pred = estimator.predict(X_val)
-    end = time.time()
-    pred_time = (end - start)
-    mcc = metrics.matthews_corrcoef(y_val, y_pred)
-    inv_mcc = 1 - mcc
-    return inv_mcc, {
-        'inv_mcc': inv_mcc,
-        'mcc': mcc,
-        'pred_time': pred_time
-    }
-
-
-def flaml_metric(metric_name):
-    """Method to select the metric for the flaml framework"""
-    if metric_name == 'mcc':
-        return flaml_mcc_metric
-    elif metric_name == 'f1':
-        return flaml_f1_metric
-    raise ValueError('No metric with that name')
-
-
-def tpot_mcc_metric(y_test, y_pred):
-    """MCC metric for the evolutionary algorithm"""
-    mcc = metrics.matthews_corrcoef(y_test, y_pred)
-    return 1 - mcc
-
-
-def tpot_f1_metric(y_test, y_pred):
-    """F1 metric for the evolutionary algorithm"""
-    f1 = metrics.f1_score(y_test, y_pred, average='weighted')
-    return 1 - f1
-
-
-def tpot_metric(metric_name):
-    """Method to select the metric to use on the evolutionary algorithm based on metric's name"""
-    if metric_name == 'mcc':
-        return tpot_mcc_metric
-    elif metric_name == 'f1':
-        return tpot_f1_metric
-    else:
-        raise ValueError('No metric with that Name')
-
-
 def save_results(results, exp):
     with open(os.path.join(exp, 'results.json'), 'w') as file:
         json.dump(results, file, indent=3, cls=NpEncoder)
+
+
+def save_predictions(filename, y_test, y_preds, y_preds_proba):
+    predictions_df = pd.DataFrame(
+        data=y_preds_proba, 
+        columns=[f'y_proba_{i}' for i in range(y_preds_proba.shape[1])])
+    predictions_df.insert(0, 'y_test', list(y_test))
+    predictions_df.insert(1, 'y_pred', list(y_preds))
+    predictions_df.to_csv(filename, index=False)
+
+
+def add_error_results(name, results, y_test):
+    append_metrics(
+        automl_framework=name,
+        results=results,
+        y_test=y_test,
+        preds=None,
+        proba_preds=None,
+        final_data_size=None,
+        original_data_size=None,
+        cdd=None,
+        class_proportions=None,
+        error=True
+    )
+    

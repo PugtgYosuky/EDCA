@@ -4,7 +4,7 @@
     "save_path": "",
     "kfold": 10,
     "verbose": 0,
-    "run-fold": 2,
+    "run-fold": null,
     "run_all_seeds": false,
     "seed_pos": 0,
     "n_iterations": 150,
@@ -40,5 +40,7 @@
     "validation_size": 0.25,
     "sampling_start": 0,
     "mutation_size_neighborhood": 10,
-    "mutation_percentage_change": 0.1
+    "mutation_percentage_change": 0.1,
+    "dataset" : null, 
+    "flaml_ms" : false
  }

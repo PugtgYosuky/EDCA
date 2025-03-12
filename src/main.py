@@ -1,3 +1,5 @@
+"""Main script, it can run the experiments to compare EDCA, FLAML and TPOT frameworks."""
+
 import matplotlib.pyplot as plt
 from utils import *
 import random as rnd
@@ -13,6 +15,29 @@ from edca.utils import class_distribution_distance
 # setup config
 from sklearn import set_config
 set_config(transform_output='pandas')
+
+# default path
+DEFAULT_SAVE_DIR = '.'
+DEFAULT_DATASETS_SRC_DIR = '../datasets'
+# default experimental datasets
+DEFAULT_DATASETS = [
+    'mfeat-factors.csv',
+    'Australian.csv',
+    'credit-g.csv',
+    'cnae-9.csv',
+    'kr-vs-kp.csv',
+    'adult.csv',
+    'PT_CA_deliveries.csv',
+    'APSFailure.csv'
+    'bank-marketing.csv',
+]
+
+# attempt to import served dependent variables
+try:
+    from config_variables import SAVE_DIR, DATASETS_SRC_DIR
+except:
+    SAVE_DIR = DEFAULT_SAVE_DIR
+    DATASETS_SRC_DIR = DEFAULT_DATASETS_SRC_DIR
 
 def disable(name):
     single_table_logger = logging.getLogger(name)
@@ -44,29 +69,27 @@ plt.rcParams.update({
 def main(config, dataset_name, seed):
     disable_sdv_logger()
     # load dataset
-    dataset = os.path.join('..', 'data', 'datasets', dataset_name)
+    dataset = os.path.join(DATASETS_SRC_DIR, dataset_name)
     df = pd.read_csv(dataset)
     y = df.pop('class')
 
     if config['openml_splits']:
-        metadata = pd.read_csv(os.path.join('..', 'data', 'metadata', 'classification_datasets_metadata.csv'))
+        metadata = pd.read_csv(os.path.join('..', 'metadata_tasks.csv'))
         task = metadata.loc[metadata.name == dataset_name.split('.')[0], 'task'].values[0]
         task_id = task.split('/')[-1]
         data_splits = get_openml_splits(task_id)
     else:
-        data_splits = get_kfold_splits(
-            df, y, k=config.get(
-                'kfold', 5), seed=seed)
+        data_splits = get_kfold_splits(df, y, k=config.get('kfold', 5), seed=seed)
 
     # create exp folder
-    logs_path = os.path.join(config['save_path'], 'logs')
+    logs_path = os.path.join(SAVE_DIR, config['save_path'])
     if os.path.exists(logs_path) == False:
         os.makedirs(logs_path)
     exp = os.path.join(logs_path, f'exp_{datetime.now()}')
     os.makedirs(exp)
     os.makedirs(os.path.join(exp, 'data'))
     # save config
-    config['dataset'] = dataset
+    config['dataset'] = dataset_name
     with open(os.path.join(exp, 'config.json'), 'w') as file:
         json.dump(config, file, indent=3)
         file.close()
@@ -106,20 +129,16 @@ if __name__ == '__main__':
     with open(sys.argv[1], 'r') as file:
         config = json.load(file)
 
-    datasets_default = [
-        'mfeat-factors.csv',
-        'Australian.csv',
-        'credit-g.csv',
-        'cnae-9.csv',
-        'adult.csv',
-        'bank-marketing.csv',
-        'Amazon_employee_access.csv',
-    ]
-
-    datasets = config.get('datasets', datasets_default)
+    if config.get('dataset', None):
+        datasets = config['dataset']
+    else:
+        datasets = DEFAULT_DATASETS
 
     # setup seeds
     seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283, 28, 298, 557, 309, 822, 569, 825, 185, 574, 325, 844, 90, 219, 864, 872, 618, 747, 365, 237, 767]
+    
+    if len(datasets) == 1 and 'deliveries' in datasets[0]:
+        seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
     
     if config.get('seed', None):
         seeds_to_run = [config.get('seed')]
@@ -135,10 +154,10 @@ if __name__ == '__main__':
             rnd.seed(seed)
             np.random.seed(seed)
             config['run_all_seeds'] = False
-            config['seed_pos'] = int(np.argwhere(np.array(seeds) == seed))
+            # config['seed_pos'] = int(np.argwhere(np.array(seeds_to_run) == seed))
             config['seed'] = seed
             for dataset in datasets:
-                print('Running ', dataset)
+                print(dataset)
                 # to continue even if there was a problem in a dataset
                 main(config, dataset, seed)
     except KeyboardInterrupt as e:
