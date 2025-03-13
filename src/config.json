@@ -18,7 +18,6 @@
     "binary_sampling_component": false,
     "sampling": true,
     "feature_selection": true,
-    "data_augmentation" : false,
     "alpha": 1,
     "beta": 0,
     "gama": 0,
@@ -28,7 +27,7 @@
     "train_flaml": false,
     "train_evo": true,
     "train_tpot": false,
-    "time_budget": 120,
+    "time_budget": 30,
     "metric": "mcc",
     "class_balance_mutation": true,
     "mutation_factor": 0.5,
@@ -41,6 +40,6 @@
     "sampling_start": 0,
     "mutation_size_neighborhood": 10,
     "mutation_percentage_change": 0.1,
-    "dataset" : null, 
+    "dataset" : ["credit-g.csv"], 
     "flaml_ms" : false
  }
