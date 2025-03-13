@@ -48,3 +48,23 @@ Note: Inside most directories there is a *README.md* detailing its content.
 
 - Joana Simões (<joanasimoes@dei.uc.pt>)
 - João Correia (<jncor@dei.uc.pt>)
+
+## Cite Us
+
+```bibtex
+
+@mastersthesis{simoes2024data,
+  title={Data Centric Optimisation in AutoML},
+  author={Sim{\~o}es, Joana Maria Silva},
+  url={https://estudogeral.uc.pt/handle/10316/118054?locale=en},
+  year={2024}
+}
+
+@article{simoes2025edca,
+  title={EDCA--An Evolutionary Data-Centric AutoML Framework for Efficient Pipelines},
+  author={Sim{\~o}es, Joana and Correia, Jo{\~a}o},
+  journal={arXiv preprint for the EvoApps 2025},
+  year={2025},
+  url={https://arxiv.org/abs/2503.04350}
+}
+```
