@@ -1,5 +1,4 @@
 import time
-import numpy as np
 import json
 from edca.estimator import PipelineEstimator
 from edca.utils import class_distribution_distance
@@ -62,9 +61,9 @@ def individual_fitness(
         # start counter
         init_time = time.time()
         # train and predict values
-        pipeline_estimator.fit(X_train, y_train)
-        preds = pipeline_estimator.predict(X_val)
-        preds_proba = pipeline_estimator.predict_proba(X_val)
+        pipeline_estimator.fit(X_train.round(3), y_train)
+        preds = pipeline_estimator.predict(X_val.round(3))
+        preds_proba = pipeline_estimator.predict_proba(X_val.round(3))
         # end counter
         end_time = time.time()
 
@@ -105,7 +104,7 @@ def individual_fitness(
                 balance_metric=balance_value)
         
         fitness_params =  {
-            'fitness' : fit,
+            'fitness' : round(fit, 3),
             'search_metric' : pred_metric,
             'train_percentage' : train_percentage,
             'time_cpu' : cpu_time,

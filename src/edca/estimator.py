@@ -1,10 +1,7 @@
 from sklearn.base import BaseEstimator
 import numpy as np
-from edca.model import create_preprocessing_pipeline, instantiate_model, instantiate_data_augmentation
+from edca.model import create_preprocessing_pipeline, instantiate_model
 from sklearn.preprocessing import LabelEncoder
-from sdv.metadata import SingleTableMetadata
-import pandas as pd
-import logging
 from flaml import AutoML
 import time
 import json
@@ -13,8 +10,6 @@ import time
 # setup config
 from sklearn import set_config
 set_config(transform_output='pandas')
-
-logging.getLogger('sdv').setLevel(logging.CRITICAL)
 
 class PipelineEstimator(BaseEstimator):
     """
@@ -88,31 +83,6 @@ class PipelineEstimator(BaseEstimator):
         # start data processing
         start_time = time.time()
         self.X_train, self.y_train, self.selected_features = get_selected_data(self.X_train, self.y_train, self.individual_config)
-
-        # data augmentation
-        if 'data_augmentation' in self.individual_config:
-            logging.disable = True
-            # create aux dataframe to train the data augmentation model 
-            aux_data = self.X_train.copy()
-            aux_data['target'] = self.y_train
-            # create the metadata
-            # Disable logging for the specific module
-            metadata_detector = SingleTableMetadata()
-            metadata_detector.detect_from_dataframe(aux_data)
-            augmentation_config = self.individual_config['data_augmentation'].copy()   
-            # create the data augmentation model
-            augmentation_model, sample_percentage = instantiate_data_augmentation(
-                augmentation_config=augmentation_config,
-                metadata=metadata_detector
-            )
-            augmentation_model.fit(aux_data)
-            # create the augmented data
-            aux_x = augmentation_model.sample(int(sample_percentage * len(self.X_train))) # sample data size equal the sample_percentage parameter x the size of the training data (selected)
-            aux_y = aux_x.pop('target')
-            # add the augmented data to the training data
-            self.X_train = pd.concat([self.X_train, aux_x], axis=0, ignore_index=True)
-            self.y_train = pd.concat([self.y_train, aux_y], axis=0, ignore_index=True)
-            logging.disable = False
 
         # create preprocessing pipeline
         self.pipeline = create_preprocessing_pipeline(

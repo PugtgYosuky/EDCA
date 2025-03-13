@@ -1,11 +1,10 @@
 import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
-from sklearn.discriminant_analysis import StandardScaler
 from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, LabelEncoder, RobustScaler
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, LabelEncoder, RobustScaler, StandardScaler
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
@@ -13,7 +12,6 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, ExtraTreesClassifier, ExtraTreesRegressor, RandomForestRegressor, AdaBoostRegressor, GradientBoostingRegressor, GradientBoostingClassifier
 from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
-from sdv.single_table import GaussianCopulaSynthesizer, CTGANSynthesizer, TVAESynthesizer
 
 
 from sklearn import set_config
@@ -28,7 +26,7 @@ def get_integer_value(config):
 
 def get_float_value(config):
     """ generates a float value based on the range"""
-    return np.random.uniform(low=config['min_value'], high=config['max_value'])
+    return np.round(np.random.uniform(low=config['min_value'], high=config['max_value']), 3)
 
 
 def get_category_value(config):
@@ -62,14 +60,11 @@ def model_parameters_mutation(model_config, model_parameters, prob_mutation):
         if np.random.random() < prob_mutation:
             type_parameter = model_parameters[parameter]['value_type']
             if type_parameter == 'integer':
-                model_config[parameter] = get_integer_value(
-                    model_parameters[parameter])
+                model_config[parameter] = get_integer_value(model_parameters[parameter])
             if type_parameter == 'float':
-                model_config[parameter] = get_float_value(
-                    model_parameters[parameter])
+                model_config[parameter] = get_float_value(model_parameters[parameter])
             if type_parameter == 'category':
-                model_config[parameter] = get_category_value(
-                    model_parameters[parameter])
+                model_config[parameter] = get_category_value(model_parameters[parameter])
     return model_config
 
 
@@ -78,8 +73,7 @@ def generate_model_code(config):
     models = list(config.keys())
     model_name = np.random.choice(models)
     model = {
-        model_name: model_parameters_mutation(
-            {}, config[model_name], 1.0)}
+        model_name: model_parameters_mutation({}, config[model_name], 1.0)}
     return model
 
 
@@ -95,41 +89,22 @@ def models_mutations(config):
             # hyperparameters mutation
             model_name = list(model_config.keys())[0]
             return {
-                model_name: model_parameters_mutation(
-                    model_config[model_name],
-                    config[model_name],
-                    prob_mutation)}
+                model_name: model_parameters_mutation(model_config[model_name],config[model_name],prob_mutation)}
 
     return model_mutation
-
-def instantiate_data_augmentation(augmentation_config, metadata, seed=42):
-    model_name = list(augmentation_config.keys())[0]
-    settings = augmentation_config[model_name].copy()
-    settings['enforce_rounding'] = bool(settings['enforce_rounding'])
-    settings['enforce_min_max_values'] = bool(settings['enforce_min_max_values'])
-    sample_percentage = settings.pop('sample_percentage')
-    if model_name == "GaussianCopulaSynthesizer":
-        model = GaussianCopulaSynthesizer(metadata=metadata, **settings)
-    elif model_name == "CTGANSynthesizer":
-        settings = settings.copy()
-        settings['verbose'] = False
-        model = CTGANSynthesizer(metadata=metadata, **settings)
-    elif model_name == "TVAESynthesizer":
-        model = TVAESynthesizer(metadata=metadata, **settings)
-    return model, sample_percentage
 
 def instantiate_model(model_config, seed=42):
     """ Instantiates the classifier given it's name and settings"""
     model_name = list(model_config.keys())[0]
     settings = model_config[model_name]
     if model_name == 'LogisticRegression':
-        model = LogisticRegression(**settings, random_state=seed)
+        model = LogisticRegression(**settings)
 
     elif model_name == 'KNeighborsClassifier':
         model = KNeighborsClassifier(**settings)
 
     elif model_name == 'SVC':
-        model = SVC(**settings, random_state=seed, probability=True)
+        model = SVC(**settings, probability=True)
 
     elif model_name == 'GaussianNB':
         model = GaussianNB(**settings)
@@ -141,10 +116,10 @@ def instantiate_model(model_config, seed=42):
         model = DecisionTreeRegressor(**settings, random_state=seed)
 
     elif model_name == 'RandomForestClassifier':
-        model = RandomForestClassifier(**settings, random_state=seed)
+        model = RandomForestClassifier(**settings, n_jobs=1, random_state=seed)
 
     elif model_name == 'RandomForestRegressor':
-        model = RandomForestRegressor(**settings, random_state=seed)
+        model = RandomForestRegressor(**settings, n_jobs=1, random_state=seed)
 
     elif model_name == 'AdaBoostClassifier':
         model = AdaBoostClassifier(**settings, random_state=seed)
@@ -153,28 +128,28 @@ def instantiate_model(model_config, seed=42):
         model = AdaBoostRegressor(**settings, random_state=seed)
 
     elif model_name == 'XGBClassifier':
-        model = XGBClassifier(**settings, random_state=seed, verbosity=0)
+        model = XGBClassifier(**settings, verbosity=0, n_jobs=1, random_state=seed)
 
     elif model_name == 'XGBRegressor':
-        model = XGBRegressor(**settings, random_state=seed, verbosity=0)
+        model = XGBRegressor(**settings, verbosity=0, n_jobs=1, random_state=seed)
 
     elif model_name == 'LGBMClassifier':
-        model = LGBMClassifier(**settings, random_state=seed, verbosity=-1)
+        model = LGBMClassifier(**settings, verbosity=-1, n_jobs=1, random_state=seed)
 
     elif model_name == 'LGBMRegressor':
-        model = LGBMRegressor(**settings, random_state=seed, verbosity=-1)
+        model = LGBMRegressor(**settings, verbosity=-1, n_jobs=1, random_state=seed)
 
     elif model_name == 'ExtraTreesClassifier':
-        model = ExtraTreesClassifier(**settings, random_state=seed)
+        model = ExtraTreesClassifier(**settings, n_jobs=1, random_state=seed)
 
     elif model_name == 'ExtraTreesRegressor':
-        model = ExtraTreesRegressor(**settings, random_state=seed)
+        model = ExtraTreesRegressor(**settings, n_jobs=1, random_state=seed)
 
     elif model_name == 'GradientBoostingClassifier':
-        model = GradientBoostingClassifier(**settings, random_state=seed)
+        model = GradientBoostingClassifier(**settings)
 
     elif model_name == 'GradientBoostingRegressor':
-        model = GradientBoostingRegressor(**settings, random_state=seed)
+        model = GradientBoostingRegressor(**settings)
 
     else: # model not found
         raise ValueError(f"Model {model_name} not found")
@@ -194,7 +169,7 @@ def instantiate_imputer(imputer_config, seed=42):
 
 
 def instantiate_encoder(encoder_config, seed=42):
-    """ Intantiates the encoder from the given config """
+    """ Instantiates the encoder from the given config """
 
     encoder_name = list(encoder_config.keys())[0]
     settings = encoder_config[encoder_name]
@@ -203,7 +178,7 @@ def instantiate_encoder(encoder_config, seed=42):
         encoder = OneHotEncoder(
             **settings,
             handle_unknown="ignore",
-            sparse=False)
+            sparse_output=False)
     elif encoder_name == 'LabelEncoder':
         encoder = LabelEncoder(**settings)
     return encoder

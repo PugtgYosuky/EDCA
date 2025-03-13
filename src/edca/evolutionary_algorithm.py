@@ -1,7 +1,5 @@
 import numpy as np
-from operator import itemgetter
 from edca.model import *
-import random
 import logging
 from edca.fitness import *
 import os
@@ -34,30 +32,32 @@ class EvolutionarySearch:
     """ Aplies the evolutionary algorithm to find the best ML pipeline """
 
     def __init__(self,
-                 config_models,
-                 components,
-                 pipeline_config,
-                 crossover_operator,
-                 mutation_operator,
-                 sampling_generator,
-                 X_train,
-                 y_train,
-                 X_val,
-                 y_val,
-                 fitness_metric,
-                 prob_mutation=0.3,
-                 prob_mutation_model=0.5,
-                 prob_crossover=0.7,
-                 population_size=10,
-                 tournament_size=3,
-                 elitism=1,
-                 num_iterations=100,
-                 time_budget=-1,
-                 filepath='',
-                 n_jobs=5,
-                 patience=None,
-                 early_stop=None,
-                 verbose=-1):
+            config_models,
+            components,
+            pipeline_config,
+            crossover_operator,
+            mutation_operator,
+            sampling_generator,
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            fitness_metric,
+            prob_mutation=0.3,
+            prob_mutation_model=0.5,
+            prob_crossover=0.7,
+            population_size=10,
+            tournament_size=3,
+            elitism=1,
+            num_iterations=100,
+            time_budget=-1,
+            filepath='',
+            n_jobs=5,
+            patience=None,
+            early_stop=None,
+            verbose=-1,
+            seed=42
+            ):
         """
         Initialization of the class
 
@@ -140,6 +140,9 @@ class EvolutionarySearch:
         
         verbose : integer
             Which generations to save the configs
+
+        seed : integer
+            Seed to reproduce the results
         Returns:
         -------
             -
@@ -232,18 +235,14 @@ class EvolutionarySearch:
             population.append(fitness_params)
         df = pd.DataFrame(population)
         df.insert(0, 'individual', list(range(1, len(self.population) + 1)))
-        df.to_csv(
-            os.path.join(
-                self.pops_path,
-                f'Population_generation_{filename}.csv'))
+        df.to_csv(os.path.join(self.pops_path, f'Population_generation_{filename}.csv'), index=False)
 
         # save individuals config
         with open(os.path.join(self.pops_path, f'Populations_config_generation_{filename}.txt'), 'w') as file:
             for i in range(len(self.population)):
-                file.write(
-                    json.dumps(
-                        self.population[i][0],
-                        cls=NpEncoder) + "\n")
+                aux = self.population[i][0].copy()
+                aux['individual_id'] = self.population[i][1]['individual_id']
+                file.write(json.dumps(aux,cls=NpEncoder) + "\n")
 
     def _check_time_limit(self):
         """ Tests it it as reached the limit time budget """

@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
-from edca.evodata import *
 from edca.model import *
 import os
 import json
@@ -17,36 +16,35 @@ class DataCentricAutoML(BaseEstimator):
     """ EDCA class """
 
     def __init__(self, task, metric='mcc', validation_size=0.25,
-                 n_iterations=10,
-                 time_budget=60,
-                 binary_sampling_component=True,
-                 automatic_data_optimization=True,
-                 use_sampling=False,
-                 use_feature_selection=False,
-                 use_data_augmentation=False, 
-                 prob_mutation=0.3,
-                 prob_mutation_model=0.5,
-                 prob_crossover=0.7,
-                 tournament_size=3,
-                 elitism_size=1,
-                 population_size=10,
-                 alpha=0.5, beta=0.5, gama=0, delta=0,
-                 verbose=-1,
-                 time_norm=None,
-                 log_folder_name=None,
-                 class_balance_mutation=False,
-                 mutation_factor=0.5,
-                 uniform_crossover=True,
-                 n_jobs=1, 
-                 patience=None,
-                 early_stop=None,
-                 sampling_start=0,
-                 mutation_size_neighborhood=20,
-                 mutation_percentage_change=0.1,
-                 retrain_all_data=None,
-                 search_space_config=None,
-                 flaml_ms=False,
-                 seed=42):
+            n_iterations=10,
+            time_budget=60,
+            automatic_data_optimization=True,
+            use_sampling=False,
+            use_feature_selection=False,
+            prob_mutation=0.3,
+            prob_mutation_model=0.5,
+            prob_crossover=0.7,
+            tournament_size=3,
+            elitism_size=1,
+            population_size=10,
+            alpha=0.5, beta=0.5, gama=0, delta=0,
+            verbose=-1,
+            time_norm=None,
+            log_folder_name=None,
+            binary_sampling_component=False,
+            class_balance_mutation=False,
+            mutation_factor=0.5,
+            mutation_size_neighborhood=20,
+            mutation_percentage_change=0.1,
+            uniform_crossover=True,
+            n_jobs=1, 
+            patience=None,
+            early_stop=None,
+            sampling_start=0,
+            retrain_all_data=None,
+            search_space_config=None,
+            flaml_ms=False,
+            seed=42):
         """
         Initialization of the class
 
@@ -68,7 +66,7 @@ class DataCentricAutoML(BaseEstimator):
             To use the binary sampling component or not
 
         automatic_data_optimization : bool
-            To use the automatic data optimization or not. If False, it will use according use_sampling, use_feature_selection and use_data_augmentation
+            To use the automatic data optimization or not. If False, it will use according use_sampling, use_feature_selection
 
         use_sampling: bool
             Boolean to indicate of the sampling should be applied or not
@@ -146,6 +144,7 @@ class DataCentricAutoML(BaseEstimator):
         """
         super().__init__()
         self.seed = seed
+        global_seed = seed
         # check the type of task
         assert task in ['classification', 'regression'], 'Task must be classification or regression'
         self.task = task
@@ -157,7 +156,6 @@ class DataCentricAutoML(BaseEstimator):
         self.automatic_data_optimization = automatic_data_optimization
         self.use_sampling = use_sampling
         self.use_feature_selection = use_feature_selection
-        self.use_data_augmentation = use_data_augmentation
         self.sampling_start = sampling_start
         self.prob_mutation = prob_mutation
         self.prob_mutation_model = prob_mutation_model
@@ -183,6 +181,7 @@ class DataCentricAutoML(BaseEstimator):
         self.mutation_percentage_change = mutation_percentage_change
         self.retrain_all_data = retrain_all_data
         self.flaml_ms = flaml_ms
+        self.search_space_config = search_space_config
 
         if self.log_folder_name == None:
             self.log_folder_name = os.path.join(datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
@@ -192,12 +191,12 @@ class DataCentricAutoML(BaseEstimator):
                 os.makedirs(os.path.join(self.log_folder_name, 'flaml_integration'))
         self.error_search = False
 
-        if isinstance(search_space_config, dict):
+        if isinstance(self.search_space_config , dict):
             # received a config search spave
-            self.config_models = search_space_config
-        elif isinstance(search_space_config, str): 
+            self.config_models = self.search_space_config 
+        elif isinstance(self.search_space_config , str): 
             # path to the config file
-            with open(os.path.join('edca', 'configs', search_space_config), 'r') as file:
+            with open(os.path.join('edca', 'configs', self.search_space_config ), 'r') as file:
                 self.config_models = json.load(file)
         else:
             # setup models is None
@@ -268,7 +267,6 @@ class DataCentricAutoML(BaseEstimator):
         # add the sampling config
         self.pipeline_config['sampling'] = self.use_sampling
         self.pipeline_config['feature_selection'] = self.use_feature_selection
-        self.pipeline_config['data_augmentation'] = self.use_data_augmentation
         self.pipeline_config['alpha'] = self.alpha
         self.pipeline_config['beta'] = self.beta
         self.pipeline_config['gama'] = self.gama

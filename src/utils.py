@@ -4,7 +4,6 @@ import pandas as pd
 import json
 import time
 import os
-from datetime import datetime
 
 from evaluation_metrics import *
 from sklearn.base import clone  # to clone models
@@ -163,7 +162,7 @@ def evo_train( results, X_train, y_train, X_test, y_test, config, evo_path, fold
         seed=config.get('seed', 42),
         metric=config.get('metric', 'mcc'),
         population_size=config.get('population'),
-        prob_mutation=config.get('prob_mutations', 0.3),
+        prob_mutation=config.get('prob_mutation', 0.3),
         prob_mutation_model=config.get('prob_mutation_model', 0.5),
         prob_crossover=config.get('prob_crossover', 0.7),
         tournament_size=config.get('tournament_size', 3),
@@ -173,7 +172,6 @@ def evo_train( results, X_train, y_train, X_test, y_test, config, evo_path, fold
         automatic_data_optimization=config.get('automatic_data_optimization', False),
         use_sampling=config.get('sampling', True),
         use_feature_selection=config.get('feature_selection', False),
-        use_data_augmentation=config.get('data_augmentation', False),
         sampling_start=config.get('sampling_start', 0),
         alpha=config.get('alpha'),
         beta=config.get('beta'),

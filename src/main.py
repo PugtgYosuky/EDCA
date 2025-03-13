@@ -1,16 +1,17 @@
 """Main script, it can run the experiments to compare EDCA, FLAML and TPOT frameworks."""
 
 import matplotlib.pyplot as plt
-from utils import *
-import random as rnd
 import json
 import sys
 import pandas as pd
 import os
 import warnings
-warnings.filterwarnings("ignore")
-import logging
+from datetime import datetime
+from utils import get_openml_splits, get_kfold_splits, train_models
 from edca.utils import class_distribution_distance
+import numpy as np
+import random
+warnings.filterwarnings("ignore")
 
 # setup config
 from sklearn import set_config
@@ -18,7 +19,7 @@ set_config(transform_output='pandas')
 
 # default path
 DEFAULT_SAVE_DIR = '.'
-DEFAULT_DATASETS_SRC_DIR = '../datasets'
+DEFAULT_DATASETS_SRC_DIR = '../data/datasets'
 # default experimental datasets
 DEFAULT_DATASETS = [
     'mfeat-factors.csv',
@@ -39,20 +40,7 @@ except:
     SAVE_DIR = DEFAULT_SAVE_DIR
     DATASETS_SRC_DIR = DEFAULT_DATASETS_SRC_DIR
 
-def disable(name):
-    single_table_logger = logging.getLogger(name)
-    handlers = single_table_logger.handlers
-    single_table_logger.handlers = []
-    try:
-        yield
-    finally:
-        for handler in handlers:
-            single_table_logger.addHandler(handler)
 
-
-def disable_sdv_logger():
-    for name in ['sdv', 'sdv.single_table', 'sdv.single_table.base', 'sdv.single_table.copulas', 'sdv.single_table.ctgan', 'sdv.single_table.copulagan']:
-        disable(name)
 plt.rcParams.update({
     'font.size': 12,       # Set font size
     'axes.labelsize': 'large',  # Set label size for x and y axes
@@ -65,9 +53,14 @@ plt.rcParams.update({
     'grid.color': 'gray'    # Set grid color
 })
 
+def setup_random_seed(seed):
+    np.random.seed(seed)
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
 
 def main(config, dataset_name, seed):
-    disable_sdv_logger()
+    setup_random_seed(seed)
     # load dataset
     dataset = os.path.join(DATASETS_SRC_DIR, dataset_name)
     df = pd.read_csv(dataset)
@@ -151,8 +144,6 @@ if __name__ == '__main__':
 
     try:
         for seed in seeds_to_run:
-            rnd.seed(seed)
-            np.random.seed(seed)
             config['run_all_seeds'] = False
             # config['seed_pos'] = int(np.argwhere(np.array(seeds_to_run) == seed))
             config['seed'] = seed
