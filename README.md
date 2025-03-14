@@ -10,13 +10,28 @@ EDCA is a Python library for Automated Machine Learning (AutoML). It optimizes t
 
 ## Installation
 
-    pip install -r requirements.txt
+### Conda
 
-or
+Install the conda environment from the yml file with all the dependencies.
 
     conda env create -f environment.yml
 
+    conda activate edca
+
+### pip
+
+Install from the pip requirements (not recommended)
+
+    conda create --name edca python=3.8.16
+
+    conda activate edca 
+
+    pip install -r requirements.txt
+
+
 ## Getting Started
+
+Run the experiments comparing the frameworks.
 
     cd src
     python main.py config.json

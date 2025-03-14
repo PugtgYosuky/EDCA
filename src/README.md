@@ -111,7 +111,7 @@ To compare the experiments, there are several parameters that should be configur
         </tr>
         <tr> 
             <th><code>verbose</code></th>
-            <th>Indicates the level of log to use</th>
+            <th>Tells which populations should be saves along the optimisation. -1 = save all, 0 = save initial population and final one. Other integer says the step of generations to save. </th>
             <th>int</th>
             <th><code>false</code></th>
         </tr>
