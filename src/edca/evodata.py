@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import random
 from sklearn.base import BaseEstimator
 from sklearn.model_selection import train_test_split
 from edca.model import *
@@ -13,7 +14,7 @@ from datetime import datetime
 from edca.utils import error_metric_function
 
 class DataCentricAutoML(BaseEstimator):
-    """ EDCA class """
+    """ Main class of the EDCA framework """
 
     def __init__(self, task, metric='mcc', validation_size=0.25,
             n_iterations=10,
@@ -27,22 +28,22 @@ class DataCentricAutoML(BaseEstimator):
             tournament_size=3,
             elitism_size=1,
             population_size=10,
-            alpha=0.5, beta=0.5, gama=0, delta=0,
-            verbose=-1,
-            time_norm=None,
-            log_folder_name=None,
+            alpha=0.5, beta=0.5, gama=0, delta=0, # (fitness parameters)
+            uniform_crossover=True,
             binary_sampling_component=False,
             class_balance_mutation=False,
+            sampling_start=0,
             mutation_factor=0.5,
             mutation_size_neighborhood=20,
             mutation_percentage_change=0.1,
-            uniform_crossover=True,
-            n_jobs=1, 
+            search_space_config=None,
             patience=None,
             early_stop=None,
-            sampling_start=0,
+            time_norm=None,
             retrain_all_data=None,
-            search_space_config=None,
+            log_folder_name=None,
+            verbose=-1,
+            n_jobs=1, 
             flaml_ms=False,
             seed=42):
         """
@@ -61,9 +62,6 @@ class DataCentricAutoML(BaseEstimator):
 
         n_iterations : integer
             Number of iterations to do of the optimization process. It will be ignored if the time_budget is not None
-
-        binary_sampling_component : bool
-            To use the binary sampling component or not
 
         automatic_data_optimization : bool
             To use the automatic data optimization or not. If False, it will use according use_sampling, use_feature_selection
@@ -95,36 +93,20 @@ class DataCentricAutoML(BaseEstimator):
         alpha, beta, gama, delta: float
             Weights of the different components of the fitness function
 
-        verbose : integer
-            Tells which populations should be saves along the optimisation. -1 = save all, 0 = save initial population and final one,
-            Other integer says the step of generations to save. 
-
-        time_norm : integer
-            Normalization of the time component of the fitness. Maximum value accepted
-
-        log_folder_name : str
-            Directory where to save the information / logs
-
-        class_balance_mutation : bool
-            To use balance mutation or not
-
-        mutation_factor : float
-            Mutation factor to add to the probabilities fot the class balance mutation
+        binary_sampling_component : bool
+            To use the binary sampling component or not
 
         uniform_crossover : bool
             To use uniform crossover (True) or point crossover (false)
-
-        n_jobs : integer
-            Number of parallel workers to use
-
-        patience : integer or None
-            Number of generations to wait until restart the population. If None, it will not restart
-
-        early_stop : integer or None
-            Number of generations to wait until finish the optimization process without improvement. If None, it will not finish
+            
+        class_balance_mutation : bool
+            To use balance mutation or not
         
         sampling_start : integer
             Iteration where to start the sampling. By default, it starts in the first iteration
+        
+        mutation_factor : float
+            Mutation factor to add to the probabilities fot the class balance mutation
 
         mutation_size_neighborhood : integer
             Size of the neighborhood to change in the mutation (integer representation)
@@ -132,9 +114,34 @@ class DataCentricAutoML(BaseEstimator):
         mutation_percentage_change : float
             Percentage of the dimension to change in the mutation (integer representation)
 
+        search_space_config : str or dict
+            Path to the config file or a dictionary with the search space configuration. If None, it will use the default configuration
+
+        patience : integer or None
+            Number of generations to wait until restart the population. If None, it will not restart
+
+        early_stop : integer or None
+            Number of generations to wait until finish the optimization process without improvement. If None, it will not finish
+        
+        time_norm : integer
+            Normalization of the time component of the fitness. Maximum value accepted
+        
         retrain_all_data : str or None
             To retrain with all samples ('samples'), with all features ('features'), with all samples and features ('all') or None
 
+        log_folder_name : str
+            Directory where to save the information.
+        
+        verbose : integer
+            Tells which populations should be saves along the optimisation. -1 = save all, 0 = save initial population and final one,
+            Other integer says the step of generations to save. 
+
+        n_jobs : integer
+            Number of parallel workers to use
+
+        flaml_ms : bool
+            To use the FLAML model selection or not.
+        
         seed : integer
             Seed to use in the process
 
@@ -144,7 +151,10 @@ class DataCentricAutoML(BaseEstimator):
         """
         super().__init__()
         self.seed = seed
-        global_seed = seed
+        # set up seed
+        np.random.seed(self.seed)
+        random.seed(self.seed)
+        os.environ["PYTHONHASHSEED"] = str(42)
         # check the type of task
         assert task in ['classification', 'regression'], 'Task must be classification or regression'
         self.task = task
