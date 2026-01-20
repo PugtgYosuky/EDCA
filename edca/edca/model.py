@@ -1,6 +1,8 @@
 import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -93,18 +95,34 @@ def models_mutations(config):
 
     return model_mutation
 
+# def instantiate_data_augmentation(augmentation_config, metadata, seed=42):
+#     model_name = list(augmentation_config.keys())[0]
+#     settings = augmentation_config[model_name].copy()
+#     settings['enforce_rounding'] = bool(settings['enforce_rounding'])
+#     settings['enforce_min_max_values'] = bool(settings['enforce_min_max_values'])
+#     sample_percentage = settings.pop('sample_percentage')
+#     if model_name == "GaussianCopulaSynthesizer":
+#         model = GaussianCopulaSynthesizer(metadata=metadata, **settings)
+#     elif model_name == "CTGANSynthesizer":
+#         settings = settings.copy()
+#         settings['verbose'] = False
+#         model = CTGANSynthesizer(metadata=metadata, **settings)
+#     elif model_name == "TVAESynthesizer":
+#         model = TVAESynthesizer(metadata=metadata, **settings)
+#     return model, sample_percentage
+
 def instantiate_model(model_config, seed=42):
     """ Instantiates the classifier given it's name and settings"""
     model_name = list(model_config.keys())[0]
     settings = model_config[model_name]
     if model_name == 'LogisticRegression':
-        model = LogisticRegression(**settings)
+        model = LogisticRegression(**settings, random_state=seed)
 
     elif model_name == 'KNeighborsClassifier':
         model = KNeighborsClassifier(**settings)
 
     elif model_name == 'SVC':
-        model = SVC(**settings, probability=True)
+        model = SVC(**settings, random_state=seed, probability=True)
 
     elif model_name == 'GaussianNB':
         model = GaussianNB(**settings)
@@ -146,10 +164,10 @@ def instantiate_model(model_config, seed=42):
         model = ExtraTreesRegressor(**settings, n_jobs=1, random_state=seed)
 
     elif model_name == 'GradientBoostingClassifier':
-        model = GradientBoostingClassifier(**settings)
+        model = GradientBoostingClassifier(**settings, random_state=seed)
 
     elif model_name == 'GradientBoostingRegressor':
-        model = GradientBoostingRegressor(**settings)
+        model = GradientBoostingRegressor(**settings, random_state=seed)
 
     else: # model not found
         raise ValueError(f"Model {model_name} not found")
@@ -180,7 +198,7 @@ def instantiate_encoder(encoder_config, seed=42):
             handle_unknown="ignore",
             sparse_output=False)
     elif encoder_name == 'LabelEncoder':
-        encoder = LabelEncoder(**settings)
+        encoder = LabelEncoder3Args(**settings)
     return encoder
 
 
@@ -211,33 +229,78 @@ def generate_scaler_code():
 
 
 class LabelEncoder3Args(BaseEstimator):
-    def __init__(self):
-        # super().__init__(**kwargs)
+    def __init__(self, **kwargs):
         self.encoders = {}
+        self.params = kwargs  # store any passed config if you want
 
     def fit(self, X, y=None):
-        # 1 encoder per binary column
         for column in X.columns:
-            aux = {}
-            encoder = LabelEncoder()
-            encoder.fit(X[column])
-            aux['encoder'] = encoder
-            aux['classes_'] = encoder.classes_
-            self.encoders[column] = aux
+            le = LabelEncoder()
+            le.fit(X[column])
+            self.encoders[column] = le
         return self
 
     def transform(self, X, y=None):
-        # transforms the columns with the fitted information
+        X = X.copy()
         for column in X.columns:
-            encoder = self.encoders[column]['encoder']
-            X[column] = encoder.transform(X[column])
+            le = self.encoders[column]
+            known_classes = set(le.classes_)
+            X[column] = X[column].apply(lambda val: le.transform([val])[0] if val in known_classes else (len(known_classes)+1))
         return X
+
+def round_up(n):
+    return round(n/10) * 10
+
+
+def encode_numeric(feature_values, encoding_values):
+    """ Encodes values of a given numeric feature based on the encoding points
+    ! Note: It works only with pandas DataFrames
+    """
+    # sort encoding for ranges
+    encoding_values = list(sorted(encoding_values))
+    series = pd.Series([None]*len(feature_values))
+    feature_values = feature_values.copy().reset_index(drop=True)
+    # encode the limits
+    series.loc[feature_values < encoding_values[0]] = f'< {encoding_values[0]}'
+    series.loc[feature_values > encoding_values[-1]] = f' > {encoding_values[-1]}'
+    
+    # encode the mid ranges
+    for i in range(len(encoding_values)-1):
+        min_value, max_value = encoding_values[i], encoding_values[i+1]
+        if len(encoding_values) > 2 and max_value != encoding_values[-1]:
+            max_value -= 1
+        series.loc[(feature_values >=min_value) & (feature_values <=max_value)] = f'{min_value}-{max_value}'
+    return series.tolist()
+
+class NumericEncoder(BaseEstimator):
+    """Class to transform a numeric feature into a categorical one"""
+    def __init__(self, numeric_encodings):
+        """
+        Params:
+            numeric_encodings : dict
+            Indicates the numeric feature to encode and the encoding cut-points to divide into the ranges
+        """
+        self.numeric_encodings = numeric_encodings
+
+    def fit(self, X, y=None):
+        # nothing to learn here
+        return self
+
+    def transform(self, X):
+        X = X.copy()
+        # transforms the given features
+        for item, values in self.numeric_encodings.items():
+            if item in X.columns:
+                X[item] = encode_numeric(X[item], values)
+        return X
+
 
 
 def create_preprocessing_pipeline(
         selected_features,
         pipeline_config,
-        individual):
+        individual,
+        numeric_encodings=None):
     """
     Create the preprocessing pipeline based on the individual and the data characteristics
 
@@ -257,8 +320,8 @@ def create_preprocessing_pipeline(
         numpy.array
             predictions
     """
-    # get features from the pipeline config interseted with the selected
-    # features
+    # get features from the pipeline config intersected with the selected features
+    
     column_transformer_steps = []
     numerical_columns = list(
         set(pipeline_config['numerical_columns']).intersection(set(selected_features)))
@@ -326,4 +389,12 @@ def create_preprocessing_pipeline(
         verbose_feature_names_out=False,
         remainder='drop',
     )
+    # add numeric encoder
+    if numeric_encodings:
+        pipeline = Pipeline(
+            steps=[
+                ('numeric_encoder', NumericEncoder(numeric_encodings=numeric_encodings)),
+                ('optimised_pipeline', pipeline)
+            ]
+        )
     return pipeline

@@ -1,35 +1,5 @@
 {
     "model" : {
-        "ExtraTreesClassifier" : {
-            "n_estimators" : {
-                "value_type" : "integer",
-                "min_value" : 4,
-                "max_value" : 100 
-            },
-            "criterion" : {
-                "value_type" : "category",
-                "possible_values" : ["gini", "entropy"]
-            },
-            "max_features" : {
-                "value_type" : "float",
-                "min_value" : 0.1,
-                "max_value" : 1.0 
-            },
-            "min_samples_split" : {
-                "value_type" : "integer",
-                "min_value" : 2,
-                "max_value" : 21
-            },
-            "min_samples_leaf" : {
-                "value_type" : "integer",
-                "min_value" : 1,
-                "max_value" : 21
-            },
-            "bootstrap" : {
-                "value_type" : "category",
-                "possible_values" : [true, false]
-            }
-        },
         "RandomForestClassifier" : {
             "n_estimators" : {
                 "value_type" : "integer",
@@ -58,6 +28,34 @@
                 "possible_values" : ["uniform", "distance"]
             }
         },
+        "DecisionTreeClassifier" : {
+            "criterion" : {
+                "value_type" : "category",
+                "possible_values" : ["gini", "entropy"]
+            },
+            "splitter" : {
+                "value_type" : "category",
+                "possible_values" : ["best", "random"]
+            },
+            "min_samples_split" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            }
+        },
+        "GaussianNB" : {},
+        "AdaBoostClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 100 
+            },
+            "learning_rate" : {
+                "value_type" : "float",
+                "min_value" : 0.25,
+                "max_value" : 1.0
+            }
+        },
         "XGBClassifier" : {
             "n_estimators" : {
                 "value_type" : "integer",
@@ -65,10 +63,38 @@
                 "max_value" : 100 
             },
             "max_depth" : {
+                "value_type" : "category",
+                "possible_values" : [0, 6, 12]
+            },
+            "learning_rate" : {
+                "value_type" : "float",
+                "min_value" : 0.001,
+                "max_value" : 0.1
+            },
+            "subsample" : {
+                "value_type" : "float",
+                "min_value" : 0.1,
+                "max_value" : 1.0
+            },
+            "min_child_weight": {
                 "value_type" : "integer",
                 "min_value" : 1,
-                "max_value" : 30 
+                "max_value" : 128
+            },
+            "colsample_bylevel" : {
+                "value_type" : "float",
+                "min_value" : 0.01,
+                "max_value" : 1.0
+            },
+            "colsample_bytree" : {
+                "value_type" : "float",
+                "min_value" : 0.01,
+                "max_value" : 1.0
             }
+
+
+
+
         },
         "LogisticRegression" : {
             "C" : {
@@ -79,53 +105,6 @@
             "penalty" : {
                 "value_type" : "category",
                 "possible_values" : ["l1", "l2", "elasticnet"]
-            },
-            "solver" : {
-                "value_type" : "category",
-                "possible_values" : ["lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga"]
-            },
-            "l1_ratio" : {
-                "value_type" : "float",
-                "min_value" : 0.0,
-                "max_value" : 1.0
-            }
-            
-        },
-        "LGBMClassifier" : {
-            "n_estimators" : {
-                "value_type" : "integer",
-                "min_value" : 4,
-                "max_value" : 100
-            },
-            "num_leaves" : {
-                "value_type" : "integer", 
-                "min_value" : 4,
-                "max_value" : 1000
-            },
-            "min_child_samples" : {
-                "value_type" : "integer",
-                "min_value" : 2,
-                "max_value" : 129
-            },
-            "learning_rate" : {
-                "value_type" : "float",
-                "min_value" : 0.001,
-                "max_value" : 1.0
-            },
-            "colsample_bytree": {
-                "value_type" : "float",
-                "min_value" : 0.01, 
-                "max_value" : 1.0
-            },
-            "reg_alpha" : {
-                "value_type" : "float",
-                "min_value" : 0.001,
-                "max_value" : 1024
-            },
-            "reg_lambda" : {
-                "value_type" : "float",
-                "min_value" : 0.001,
-                "max_value" : 1024
             }
         }
     },

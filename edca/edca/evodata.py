@@ -11,7 +11,8 @@ from edca.encoder import NpEncoder
 from edca.ea import mutation_individuals, mutation_sampling_component, sample_class_balance_mutation, uniform_crossover, points_crossover, generate_sampling_component
 from edca.estimator import PipelineEstimator, dataset_analysis, get_selected_data
 from datetime import datetime
-from edca.utils import error_metric_function
+from edca.utils import error_metric_function, has_full_coverage
+from edca.model import NumericEncoder
 
 class DataCentricAutoML(BaseEstimator):
     """ Main class of the EDCA framework """
@@ -19,16 +20,23 @@ class DataCentricAutoML(BaseEstimator):
     def __init__(self, task, metric='mcc', validation_size=0.25,
             n_iterations=10,
             time_budget=60,
+            fitness_params = {
+                'metric' : 1.0,
+                'data_size' : 0.0,
+                'training_time' : 0.0,
+                'balance_metric' : 0.0,
+                'fairness_metric' : 0.0
+            },
             automatic_data_optimization=True,
             use_sampling=False,
             use_feature_selection=False,
+            use_data_augmentation=False,
             prob_mutation=0.3,
             prob_mutation_model=0.5,
             prob_crossover=0.7,
             tournament_size=3,
             elitism_size=1,
             population_size=10,
-            alpha=0.5, beta=0.5, gama=0, delta=0, # (fitness parameters)
             uniform_crossover=True,
             binary_sampling_component=False,
             class_balance_mutation=False,
@@ -39,12 +47,12 @@ class DataCentricAutoML(BaseEstimator):
             search_space_config=None,
             patience=None,
             early_stop=None,
-            time_norm=None,
             retrain_all_data=None,
             log_folder_name=None,
             verbose=-1,
             n_jobs=1, 
             flaml_ms=False,
+            fairness_params={},
             seed=42):
         """
         Initialization of the class
@@ -62,6 +70,19 @@ class DataCentricAutoML(BaseEstimator):
 
         n_iterations : integer
             Number of iterations to do of the optimization process. It will be ignored if the time_budget is not None
+
+        time_budget : float
+            Time budget for the optimization process. If None, it will run until the end
+
+        fitness_params : dict
+            Dictionary with the weights to use in the fitness function. It must contain the following keys:
+                'metric' : weight for the prediction metric (between 0 and 1)
+                'data_size' : weight for the data size used (between 0 and 1
+                'training_time' : weight for the training time used (between 0 and 1)
+                'balance_metric' : weight for the class balance metric (between 0 and 1)
+                'fairness_metric' : weight for the fairness metric (between 0 and 1)
+            The sum of the weights must be equal to 1.0
+            If None, it will use the default values
 
         automatic_data_optimization : bool
             To use the automatic data optimization or not. If False, it will use according use_sampling, use_feature_selection
@@ -89,9 +110,6 @@ class DataCentricAutoML(BaseEstimator):
 
         population_size : integer
             Size of the population
-
-        alpha, beta, gama, delta: float
-            Weights of the different components of the fitness function
 
         binary_sampling_component : bool
             To use the binary sampling component or not
@@ -123,9 +141,6 @@ class DataCentricAutoML(BaseEstimator):
         early_stop : integer or None
             Number of generations to wait until finish the optimization process without improvement. If None, it will not finish
         
-        time_norm : integer
-            Normalization of the time component of the fitness. Maximum value accepted
-        
         retrain_all_data : str or None
             To retrain with all samples ('samples'), with all features ('features'), with all samples and features ('all') or None
 
@@ -154,18 +169,21 @@ class DataCentricAutoML(BaseEstimator):
         # set up seed
         np.random.seed(self.seed)
         random.seed(self.seed)
-        os.environ["PYTHONHASHSEED"] = str(42)
+        os.environ["PYTHONHASHSEED"] = str(self.seed)
         # check the type of task
         assert task in ['classification', 'regression'], 'Task must be classification or regression'
         self.task = task
         self.metric_name = metric
         self.metric = error_metric_function(metric, self.task)
+        self.fitness_params = fitness_params
+        self.fairness_params = fairness_params if fairness_params is not None else {}
         self.validation_size = validation_size
         self.n_iterations = n_iterations
         self.binary_sampling_component = binary_sampling_component
         self.automatic_data_optimization = automatic_data_optimization
         self.use_sampling = use_sampling
         self.use_feature_selection = use_feature_selection
+        self.use_data_augmentation = use_data_augmentation        
         self.sampling_start = sampling_start
         self.prob_mutation = prob_mutation
         self.prob_mutation_model = prob_mutation_model
@@ -174,12 +192,7 @@ class DataCentricAutoML(BaseEstimator):
         self.elitism_size = elitism_size
         self.population_size = population_size
         self.time_budget = time_budget  # seconds
-        self.alpha = alpha
-        self.beta = beta
-        self.gama = gama
-        self.delta = delta
         self.verbose = verbose
-        self.time_norm = time_norm
         self.class_balance_mutation = class_balance_mutation
         self.uniform_crossover = uniform_crossover
         self.mutation_factor = mutation_factor
@@ -205,12 +218,16 @@ class DataCentricAutoML(BaseEstimator):
             # received a config search spave
             self.config_models = self.search_space_config 
         elif isinstance(self.search_space_config , str): 
+            # Get the directory of the current file
+            current_dir = os.path.dirname(__file__)
             # path to the config file
-            with open(os.path.join('edca', 'configs', self.search_space_config ), 'r') as file:
+            with open(os.path.join(current_dir, 'configs', self.search_space_config ), 'r') as file:
                 self.config_models = json.load(file)
         else:
             # setup models is None
-            with open(os.path.join('edca', 'configs', f'{self.task}_models.json'), 'r') as file:
+            # Get the directory of the current file
+            current_dir = os.path.dirname(__file__)
+            with open(os.path.join(current_dir, 'configs', f'{self.task}_models.json'), 'r') as file:
                 self.config_models = json.load(file)
 
     def _save(self):
@@ -258,6 +275,7 @@ class DataCentricAutoML(BaseEstimator):
         # save dataset
         self.X_train = X_train.copy()
         self.y_train = y_train.copy()
+
         # self.X_train.reset_index(drop=True, inplace=True)
         # self.y_train.reset_index(drop=True, inplace=True)
 
@@ -268,7 +286,15 @@ class DataCentricAutoML(BaseEstimator):
             stratify = y_train if self.task == 'classification' else None, 
             test_size = self.validation_size,
             random_state = self.seed
-            )
+        )
+        # convert sensitive attributes to categorical when using fairness
+        self.fairness_numeric_encoder = None
+        if self.fairness_params.get('bin_class', None):
+            self.fairness_numeric_encoder = NumericEncoder(self.fairness_params['bin_class']).fit(self.internal_x_train)
+            self.internal_x_train = self.fairness_numeric_encoder.transform(self.internal_x_train)
+            self.internal_x_val = self.fairness_numeric_encoder.transform(self.internal_x_val)
+
+        # calculate sizes
         self.sampling_size = len(self.internal_x_train)
         self.fs_size = self.internal_x_train.shape[1]
 
@@ -277,23 +303,30 @@ class DataCentricAutoML(BaseEstimator):
         # add the sampling config
         self.pipeline_config['sampling'] = self.use_sampling
         self.pipeline_config['feature_selection'] = self.use_feature_selection
-        self.pipeline_config['alpha'] = self.alpha
-        self.pipeline_config['beta'] = self.beta
-        self.pipeline_config['gama'] = self.gama
-        self.pipeline_config['delta'] = self.delta
-        self.pipeline_config['time_norm'] = self.time_norm
+        self.pipeline_config['data_augmentation'] = self.use_data_augmentation
+        self.pipeline_config['fitness_params'] = self.fitness_params
         self.pipeline_config['sample-start'] = self.sampling_start
         self.pipeline_config['automatic_data_optimization'] = self.automatic_data_optimization
         self.pipeline_config['sampling_size'] = self.sampling_size
         self.pipeline_config['fs_size'] = self.fs_size
         self.pipeline_config['task'] = self.task
         self.pipeline_config['seed'] = self.seed
+        self.pipeline_config['fairness_params'] = self.fairness_params
+        if self.fairness_params:
+            # analyse if it has full coverage for the validation data to calculate the fairness metrics without errors
+            self.pipeline_config['fairness_params']['full_coverage'] = has_full_coverage(
+                X=self.internal_x_val, 
+                sensitive_attributes=self.fairness_params['sensitive_attributes'], 
+                y_true=(pd.Series(self.internal_y_val) == self.fairness_params['positive_class'])
+            )
+
+        # add FLAML config
         if self.flaml_ms:
             self.pipeline_config['flaml_ms'] = True
             self.pipeline_config['search_metric'] = self.metric_name
             self.pipeline_config['time_budget'] = self.time_budget
             self.pipeline_config['flaml_save_dir'] = os.path.join(self.log_folder_name, 'flaml_integration')
-
+        
         # optimisation process
         self._search_algorithm(
                 X_train=self.internal_x_train,
@@ -418,11 +451,6 @@ class DataCentricAutoML(BaseEstimator):
             num_iterations=self.n_iterations,
             time_budget=self.time_budget,
             filepath=self.log_folder_name,
-            components={
-                'alpha': self.alpha,
-                'beta': self.beta,
-                'gama': self.gama
-            },
             X_train=X_train,
             X_val=X_val,
             y_train=y_train,
@@ -441,6 +469,9 @@ class DataCentricAutoML(BaseEstimator):
         """ Predicts the test set using the best ML pipeline found during the optimisation process"""
         if self.error_search:
             return None
+        # for when using fairness
+        if self.fairness_numeric_encoder:
+            X = self.fairness_numeric_encoder.transform(X.copy())
         preds = self.pipeline_estimator.predict(X)
         return preds
 
@@ -448,6 +479,9 @@ class DataCentricAutoML(BaseEstimator):
         """ Predicts the probability of test sample with the best ML pipeline found """
         if self.error_search:
             return None
+        # for when using fairness
+        if self.fairness_numeric_encoder:
+            X = self.fairness_numeric_encoder.transform(X.copy())
         preds_proba = self.pipeline_estimator.predict_proba(X)
         return preds_proba
 

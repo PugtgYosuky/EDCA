@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from operator import itemgetter
 from edca.model import *
 import random
 from copy import deepcopy
@@ -174,6 +175,7 @@ def mutation_individuals(
     categorical_imputer_mutation = models_mutations(config['categorical-imputer'])
     encoder_mutation = models_mutations(config['encoder'])
     model_mutation = models_mutations(config['model'])
+    augmentation_mutation = models_mutations(config['data_augmentation'])
 
     # add the options to mutate the data according to the pipeline configuration (user preferences)
     data_options = []
@@ -181,6 +183,8 @@ def mutation_individuals(
         data_options.append('sample')
     if pipeline_config['feature_selection']:
         data_options.append('features')
+    if pipeline_config['data_augmentation']:
+        data_options.append('data_augmentation')
 
     def mutation(individual):
         """
@@ -226,6 +230,21 @@ def mutation_individuals(
                     new_individual[key] = fs_mutation_operator(new_individual[key])
             else:
                 new_individual[key] = data_generator(pipeline_config['fs_size'])
+        if key == 'data_augmentation':
+            if key in new_individual:
+                # sample mutation
+                if pipeline_config['automatic_data_optimization'] and np.random.random() < 0.5:
+                    # if automatic data optimization is enabled, 
+                    #the data augmentation gene has a 50% chance of being removed
+                    new_individual.pop(key)
+                else:
+                    new_individual[key] = augmentation_mutation(
+                        model_config=new_individual[key],
+                        prob_model_mutation=prob_mutation_model,
+                        prob_mutation=prob_mutation    
+                    )
+            else:
+                individual['data_augmentation'] = generate_model_code(config['data_augmentation'])
         if key == 'numerical-imputer':
             # numerical imputer mutation
             new_individual[key] = numerical_imputer_mutation(
@@ -297,6 +316,10 @@ def generate_individual(config, pipeline_config, sampling_generator):
             individual['sample'] = sampling_generator(pipeline_config['sampling_size'])
         if pipeline_config['feature_selection'] and np.random.random() < 0.5:
             individual['features'] = sampling_generator(pipeline_config['fs_size'])
+        if pipeline_config['data_augmentation'] and np.random.random() < 0.5:
+            individual['data_augmentation'] = generate_model_code(
+                config['data_augmentation']
+            )
     else:
         # manual defined if it should use the automatic data optimization
         if pipeline_config['sampling'] and pipeline_config['sample-start'] == 0:
@@ -305,6 +328,10 @@ def generate_individual(config, pipeline_config, sampling_generator):
         if pipeline_config['feature_selection']:
             individual['features'] = sampling_generator(pipeline_config['fs_size'])
         
+        if pipeline_config['data_augmentation']:
+            individual['data_augmentation'] = generate_model_code(
+                config['data_augmentation']
+            )
 
     if len(pipeline_config['numerical_with_nans']) > 0:
         individual['numerical-imputer'] = generate_model_code(

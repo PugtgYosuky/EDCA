@@ -1,0 +1,233 @@
+{
+    "model" : {
+        "ExtraTreesClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 4,
+                "max_value" : 100 
+            },
+            "criterion" : {
+                "value_type" : "category",
+                "possible_values" : ["gini", "entropy"]
+            },
+            "max_features" : {
+                "value_type" : "float",
+                "min_value" : 0.1,
+                "max_value" : 1.0 
+            },
+            "min_samples_split" : {
+                "value_type" : "integer",
+                "min_value" : 2,
+                "max_value" : 21
+            },
+            "min_samples_leaf" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 21
+            },
+            "bootstrap" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            }
+        },
+        "RandomForestClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 4,
+                "max_value" : 100 
+            },
+            "max_features" : {
+                "value_type" : "float",
+                "min_value" : 0.1,
+                "max_value" : 1.0 
+            },
+            "criterion" : {
+                "value_type" : "category",
+                "possible_values" : ["gini", "entropy"]
+            }
+        },
+        "KNeighborsClassifier" : {
+            "n_neighbors" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 10 
+
+            },
+            "weights" : {
+                "value_type" : "category",
+                "possible_values" : ["uniform", "distance"]
+            }
+        },
+        "XGBClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 100 
+            },
+            "max_depth" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 30 
+            }
+        },
+        "LogisticRegression" : {
+            "C" : {
+                "value_type" : "float",
+                "min_value" : 0.03125,
+                "max_value" : 32768.0
+            },
+            "penalty" : {
+                "value_type" : "category",
+                "possible_values" : ["l1", "l2", "elasticnet"]
+            },
+            "solver" : {
+                "value_type" : "category",
+                "possible_values" : ["lbfgs", "liblinear", "newton-cg", "newton-cholesky", "sag", "saga"]
+            },
+            "l1_ratio" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            }
+            
+        },
+        "LGBMClassifier" : {
+            "n_estimators" : {
+                "value_type" : "integer",
+                "min_value" : 4,
+                "max_value" : 100
+            },
+            "num_leaves" : {
+                "value_type" : "integer", 
+                "min_value" : 4,
+                "max_value" : 1000
+            },
+            "min_child_samples" : {
+                "value_type" : "integer",
+                "min_value" : 2,
+                "max_value" : 129
+            },
+            "learning_rate" : {
+                "value_type" : "float",
+                "min_value" : 0.001,
+                "max_value" : 1.0
+            },
+            "colsample_bytree": {
+                "value_type" : "float",
+                "min_value" : 0.01, 
+                "max_value" : 1.0
+            },
+            "reg_alpha" : {
+                "value_type" : "float",
+                "min_value" : 0.001,
+                "max_value" : 1024
+            },
+            "reg_lambda" : {
+                "value_type" : "float",
+                "min_value" : 0.001,
+                "max_value" : 1024
+            }
+        }
+    },
+    "numerical-imputer" : {
+        "SimpleImputer" : {
+            "strategy" : {
+                "value_type" : "category",
+                "possible_values" : ["mean", "median", "most_frequent"]
+            },
+            "add_indicator" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            }
+        },
+        "KNNImputer" : {
+            "n_neighbors" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 7 
+    
+            }
+        }
+    },
+    "categorical-imputer" : {
+        "SimpleImputer" : {
+            "strategy" : {
+                "value_type" : "category",
+                "possible_values" : ["most_frequent"]
+            },
+            "add_indicator" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            }
+        }
+    },
+    "encoder" : {
+        "OneHotEncoder" : {
+            "drop" : {
+                "value_type" : "category",
+                "possible_values" : ["first", "if_binary", null]
+            }
+        }
+    },
+    "data_augmentation" : {
+        "GaussianCopulaSynthesizer" : {
+            "sample_percentage" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            },
+            "enforce_min_max_values" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "enforce_rounding" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "default_distribution" : {
+                "value_type" : "category",
+                "possible_values" : ["norm", "beta", "truncnorm", "uniform", "gamma", "gaussian_kde"]
+            }
+        },
+        "CTGANSynthesizer" : {
+            "sample_percentage" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            },
+            "enforce_min_max_values" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "enforce_rounding" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "epochs" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 10
+            }
+        },
+        "TVAESynthesizer" : {
+            "sample_percentage" : {
+                "value_type" : "float",
+                "min_value" : 0.0,
+                "max_value" : 1.0
+            },
+            "enforce_min_max_values" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "enforce_rounding" : {
+                "value_type" : "category",
+                "possible_values" : [true, false]
+            },
+            "epochs" : {
+                "value_type" : "integer",
+                "min_value" : 1,
+                "max_value" : 10
+            }
+        }
+    }
+}

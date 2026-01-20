@@ -1,7 +1,9 @@
 from sklearn.base import BaseEstimator
 import numpy as np
-from edca.model import create_preprocessing_pipeline, instantiate_model
+from edca.model import create_preprocessing_pipeline, instantiate_model, NumericEncoder
 from sklearn.preprocessing import LabelEncoder
+import pandas as pd
+import logging
 from flaml import AutoML
 import time
 import json
@@ -11,13 +13,16 @@ import time
 from sklearn import set_config
 set_config(transform_output='pandas')
 
+from edca.utils import debug_print
+
+
 class PipelineEstimator(BaseEstimator):
     """
     Class to execute a given individual/ pipeline
 
     """
 
-    def __init__(self, individual_config, pipeline_config=None, seed=None, individual_id=None):
+    def __init__(self, individual_config, pipeline_config=None, seed=None, individual_id=None, fairness_params={}):
         """
         Initialization
 
@@ -50,7 +55,7 @@ class PipelineEstimator(BaseEstimator):
         self.data_processing_time = None
         self.train_time = None # all the time spent in training the model (model training time + data processing time)
         self.prediction_time = None # time spent in predicting the model
-
+        self.fairness_params = fairness_params
 
     def fit(self, X, y, seed=42):
         """
@@ -77,6 +82,7 @@ class PipelineEstimator(BaseEstimator):
             self.pipeline_config['seed'] = seed
         self.X = X.copy()
         self.y = y.copy()
+
         self.X_train = X.copy()
         self.y_train = y.copy()
         
@@ -84,20 +90,44 @@ class PipelineEstimator(BaseEstimator):
         start_time = time.time()
         self.X_train, self.y_train, self.selected_features = get_selected_data(self.X_train, self.y_train, self.individual_config)
 
+        # data augmentation
+        if 'data_augmentation' in self.individual_config:
+            logging.disable = True
+            # create aux dataframe to train the data augmentation model 
+            aux_data = self.X_train.copy()
+            aux_data['target'] = self.y_train
+            # create the metadata
+            # Disable logging for the specific module
+            metadata_detector = SingleTableMetadata()
+            metadata_detector.detect_from_dataframe(aux_data)
+            augmentation_config = self.individual_config['data_augmentation'].copy()   
+            # create the data augmentation model
+            augmentation_model, sample_percentage = instantiate_data_augmentation(
+                augmentation_config=augmentation_config,
+                metadata=metadata_detector
+            )
+            augmentation_model.fit(aux_data)
+            # create the augmented data
+            aux_x = augmentation_model.sample(int(sample_percentage * len(self.X_train))) # sample data size equal the sample_percentage parameter x the size of the training data (selected)
+            aux_y = aux_x.pop('target')
+            # add the augmented data to the training data
+            self.X_train = pd.concat([self.X_train, aux_x], axis=0, ignore_index=True)
+            self.y_train = pd.concat([self.y_train, aux_y], axis=0, ignore_index=True)
+            logging.disable = False
+
         # create preprocessing pipeline
         self.pipeline = create_preprocessing_pipeline(
             selected_features=self.selected_features,
             pipeline_config=self.pipeline_config,
-            individual=self.individual_config
-        )
-
-        self.X_training = self.pipeline.fit_transform(self.X_train).copy()
-
+            individual=self.individual_config,
+            numeric_encodings=self.fairness_params.get('bin_class', None)
+        ).fit(self.X_train)
+        self.X_training = self.pipeline.transform(self.X_train)
         # encode the target class for classification tasks
         if self.pipeline_config['task'] == 'classification':
             self.y_encoder = LabelEncoder()
             self.y_train_encoded = self.y_encoder.fit_transform(self.y_train)
-
+        
         # end data processing
         self.data_processing_time = time.time() - start_time
 
@@ -105,7 +135,7 @@ class PipelineEstimator(BaseEstimator):
         start_time = time.time()
         if self.pipeline_config.get('flaml_ms', False) == False:
             self.model = instantiate_model(self.individual_config.get('model'), seed=self.pipeline_config.get('seed'))
-            self.model.fit(self.X_training, self.y_train_encoded)
+            self.model.fit(np.array(self.X_training), self.y_train_encoded)
 
         else:
             # use FLAML
@@ -164,7 +194,7 @@ class PipelineEstimator(BaseEstimator):
         X_test = X.copy()
         X_test = X_test[self.selected_features]
         X_test = self.pipeline.transform(X_test)
-        preds = self.model.predict(X_test)
+        preds = self.model.predict(np.array(X_test))
         # decode the target class for classification tasks
         if self.pipeline_config['task'] == 'classification':
             preds = self.y_encoder.inverse_transform(preds)
@@ -190,7 +220,7 @@ class PipelineEstimator(BaseEstimator):
         X_test = X.copy()
         X_test = X_test[self.selected_features]
         X_test = self.pipeline.transform(X_test)
-        return self.model.predict_proba(X_test)
+        return self.model.predict_proba(np.array(X_test))
 
     def get_best_sample_data(self):
         if 'sample' in self.individual_config:
@@ -230,7 +260,7 @@ def get_selected_data(X_train, y_train, individual_config):
             X_train = X_train[selected_features].copy()
         return X_train, y_train, selected_features
 
-def dataset_analysis(df):
+def dataset_analysis(df, numeric_2_categorical_features=None):
     """
     Analysis the given data
 
@@ -246,19 +276,20 @@ def dataset_analysis(df):
         dict
             contains lists of features containing the different data types present in the dataset
     """
+    # calculate numeric features that will be encoded
+    numeric_2_cat_columns = []
+    if numeric_2_categorical_features:
+        numeric_2_cat_columns = list(numeric_2_categorical_features.keys())
 
     print('>>> Dataset Analysis')
     # select null cols
     null_cols = list(df.columns[df.isnull().sum() == len(df)])
     # select columns with nan that not belong to null_cols
-    columns_with_nans = [col for col in list(
-        df.columns[df.isnull().any()]) if col not in null_cols]
-    # select numerical columns dat not belong to null cols
-    numerical_columns = [col for col in df.select_dtypes(
-        include=['number']).columns.tolist() if col not in null_cols]
+    columns_with_nans = [col for col in list(df.columns[df.isnull().any()]) if col not in null_cols]
+    # select numerical columns that not belong to null cols and numeric to cat cols
+    numerical_columns = [col for col in df.select_dtypes(include=['number']).columns.tolist() if (col not in null_cols and col not in numeric_2_cat_columns)]
     # select other columns, i.e, binary and categorical columns
-    other_columns = [
-        col for col in df.columns if col not in numerical_columns and col not in null_cols]
+    other_columns = [col for col in df.columns if col not in numerical_columns and col not in null_cols]
     categorical_columns = []
     id_columns = []
     binary_columns = []
@@ -268,7 +299,7 @@ def dataset_analysis(df):
         aux = df[column].dropna()
         if aux.nunique() == 2:
             binary_columns.append(column)
-        elif aux.nunique() == len(aux):
+        elif aux.nunique() == len(aux) and column not in numeric_2_cat_columns:
             id_columns.append(column)
         else:
             categorical_columns.append(column)
@@ -277,8 +308,7 @@ def dataset_analysis(df):
     # the features seperated by type with nans
     numerical_with_nans = list(set(numerical_columns) & set(columns_with_nans))
     binary_with_nans = list(set(binary_columns) & set(columns_with_nans))
-    categorical_with_nans = list(
-        set(categorical_columns) & set(columns_with_nans))
+    categorical_with_nans = list(set(categorical_columns) & set(columns_with_nans))
     # create the pipeline config with the types of features separated by
     # characteristics
     pipeline_config = {

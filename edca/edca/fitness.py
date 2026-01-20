@@ -1,7 +1,10 @@
 import time
 import json
 from edca.estimator import PipelineEstimator
-from edca.utils import class_distribution_distance
+from edca.utils import class_distribution_distance, fairness_metric
+import pandas as pd
+from sklearn import metrics
+from edca.utils import debug_print, DEBUG_MODE
 
 from sklearn import set_config
 set_config(transform_output='pandas')
@@ -53,20 +56,21 @@ def individual_fitness(
     """
     # make a copy
     try:
+        if 'individual_id' in individual:
+            del individual['individual_id']
         pipeline_estimator = PipelineEstimator(
             individual_config=individual,
             pipeline_config=pipeline_config,
-            individual_id=individual_id
+            individual_id=individual_id,
         )
         # start counter
         init_time = time.time()
         # train and predict values
-        pipeline_estimator.fit(X_train.round(3), y_train)
-        preds = pipeline_estimator.predict(X_val.round(3))
-        preds_proba = pipeline_estimator.predict_proba(X_val.round(3))
+        pipeline_estimator.fit(X_train, y_train)
+        preds = pipeline_estimator.predict(X_val)
+        preds_proba = pipeline_estimator.predict_proba(X_val)
         # end counter
         end_time = time.time()
-
         # calculate metrics
         pred_metric = metric(y_true=y_val, y_pred=preds, y_prob=preds_proba)
         # calculates the percentage of data used based on the instances and
@@ -76,47 +80,60 @@ def individual_fitness(
         features_percentage = pipeline_estimator.X_train.shape[1] / X_train.shape[1]
         # calculate cpu time
         cpu_time = end_time - init_time
+        normalized_time = 1 - (1 / (1 + cpu_time))
         # calculate balance metric
+        proportions = pipeline_estimator.y_train.value_counts(normalize=True)
         balance_value = class_distribution_distance(
-            classes_proportions=pipeline_estimator.y_train.value_counts(normalize=True).values,
+            classes_proportions=proportions.values,
             number_classes=y_train.nunique()
         )
-        # calculate class proportions
-        y_train_value_counts = pipeline_estimator.y_train.value_counts(normalize=True)
-        proportion_per_class = []
-        for class_name, proportion in y_train_value_counts.items():
-            proportion_per_class.append((class_name, proportion))
-        # create fitness
-        # alpha * metric + beta * train_percentage + gama * time_spent
-        if pipeline_config.get('time_norm', None) is None:
-            fit = sum_components(
-                pipeline_config=pipeline_config,
-                pred_metric=pred_metric,
-                train_percentage=train_percentage,
-                cpu_time=cpu_time,
-                balance_metric=balance_value)
+
+        # calculate fairness metrics
+        if pipeline_config.get('fairness_params', None):
+            fairness, fair_metrics = fairness_metric(
+                y_true = y_val,
+                y_pred = preds,
+                y_proba = preds_proba[:, 1],
+                X_test = X_val,
+                fairness_params = pipeline_config['fairness_params']
+            )
+            
         else:
-            fit = sum_components_with_normalized_time(
-                pipeline_config=pipeline_config,
-                pred_metric=pred_metric,
-                train_percentage=train_percentage,
-                cpu_time=cpu_time,
-                balance_metric=balance_value)
+            fairness, fair_metrics = None, {}
+        # calculate fitness
+        fitness_value = pipeline_config['fitness_params']['metric'] * pred_metric \
+            + pipeline_config['fitness_params']['data_size'] * train_percentage \
+            + pipeline_config['fitness_params']['training_time'] * normalized_time \
+            + pipeline_config['fitness_params']['balance_metric'] * balance_value \
+            + pipeline_config['fitness_params']['fairness_metric'] * (fairness if fairness is not None else 1)
         
         fitness_params =  {
-            'fitness' : round(fit, 3),
+            'fitness' : round(fitness_value, 3),
             'search_metric' : pred_metric,
             'train_percentage' : train_percentage,
             'time_cpu' : cpu_time,
             'samples_percentage' : samples_percentage,
             'features_percentage' : features_percentage,
             'balance_metric' : balance_value,
-            'proportion_per_class' : str(proportion_per_class),
+            'proportion_per_class' : str(proportions.to_dict()),
+            'fairness_metric' : fairness,
+
             'individual_id' : individual_id,
             'data_processing_time' : pipeline_estimator.data_processing_time,
             'model_training_time' : pipeline_estimator.model_training_time,
             'prediction_time' : pipeline_estimator.prediction_time
         }
+        if y_val.nunique()==2:
+            tn, fp, fn, tp = metrics.confusion_matrix(y_val, preds).ravel()
+            cm = {
+            'tn' : tn,
+            'fp' : fp,
+            'fn' : fn,
+            'tp' : tp,
+            }
+            fitness_params.update(cm)
+        # update with fairness metrics
+        fitness_params.update(fair_metrics)
 
         if pipeline_config.get('flaml_ms', False):
             fitness_params['flaml_estimator'] = pipeline_estimator.model.best_estimator
@@ -124,6 +141,7 @@ def individual_fitness(
         return fitness_params
     
     except Exception as e:
+        debug_print(e)
         fitness_params = {
             'fitness' : 1,
             'search_metric' : 1,
@@ -133,6 +151,10 @@ def individual_fitness(
             'features_percentage' : 1,
             'balance_metric' : 1,
             'proportion_per_class' : None,
+            'fairness_metric' : 1,
+            'demographic_parity_difference' : 1,
+            'equal_opportunity_difference' : 1,
+            'equalized_odds_difference' : 1,
             'individual_id' : individual_id,
             'data_processing_time' : 1,
             'model_training_time' : 1,
@@ -142,70 +164,4 @@ def individual_fitness(
             fitness_params['flaml_estimator'] = None
             fitness_params['flaml_estimator_config'] = None
         return fitness_params
-
-def sum_components(pipeline_config, pred_metric, train_percentage, cpu_time, balance_metric):
-    """
-    Calculates the fitness of the individual based on the different components and the weights associated
-
-    Parameters:
-    ----------
-    pipeline_config : dict
-        Dict with the weights for the components of the fitness
-
-    pred_metric : float
-        Prediction metric output, between 0 and 1
-
-    train_percentage : float
-        Percentage of train data used, between 0 and 1
-
-    cpu_time : float
-        Time the individual required to train, between 0 and infinite
-
-    Returns:
-    -------
-        float
-            Fitness
-    """
-    fitness = pipeline_config['alpha'] * pred_metric \
-                + pipeline_config['beta'] * train_percentage \
-                + pipeline_config['gama'] * cpu_time \
-                + pipeline_config['delta'] * balance_metric
-    return fitness
-
-
-def sum_components_with_normalized_time(
-        pipeline_config,
-        pred_metric,
-        train_percentage,
-        cpu_time,
-        balance_metric):
-    """
-    Calculates the fitness of the individual based on the different components and the weights associated,
-    by normalising the time component of the fitness
-
-    Parameters:
-    ----------
-    pipeline_config : dict
-        Dict with the weights for the components of the fitness
-
-    pred_metric : float
-        Prediction metric output, between 0 and 1
-
-    train_percentage : float
-        Percentage of train data used, between 0 and 1
-
-    cpu_time : float
-        Time the individual required to train, between 0 and infinite
-
-    Returns:
-    -------
-        float
-            Fitness
-    """
-    time_component = 1 - (pipeline_config['time_norm'] / (1 + cpu_time))
-    fitness = pipeline_config['alpha'] * pred_metric \
-                + pipeline_config['beta'] * train_percentage \
-                + pipeline_config['gama'] * time_component \
-                + pipeline_config['delta'] * balance_metric
-    return fitness
-
+    

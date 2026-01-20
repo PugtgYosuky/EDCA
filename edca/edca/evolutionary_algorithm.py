@@ -33,7 +33,6 @@ class EvolutionarySearch:
 
     def __init__(self,
             config_models,
-            components,
             pipeline_config,
             crossover_operator,
             mutation_operator,
@@ -65,9 +64,6 @@ class EvolutionarySearch:
         ----------
         config_models : dict
             Search space of each type of gene
-
-        components : dict
-            Fitness weights of the different components
 
         pipeline_config : dict
             Data characteristics to generate the individuals
@@ -155,7 +151,6 @@ class EvolutionarySearch:
         self.tournament_size = tournament_size
         self.elitism = elitism
         self.config_models = config_models
-        self.components = components
         self.pipeline_config = pipeline_config
         self.num_iterations = num_iterations
         self.time_budget = time_budget
@@ -190,7 +185,7 @@ class EvolutionarySearch:
 
         self.filepath = filepath
 
-        # save individuals fitness and components no avoid retraining
+        # save individuals fitness to avoid retraining
         self._individuals_fitness_df = pd.DataFrame(
             columns=[
                 'config',
