@@ -72,7 +72,6 @@ if __name__ == '__main__':
         time_budget=-1, # specify the time budget in seconds, -1 indicates no time limit, using the iterations as stop criteria
         n_iterations=10, # specify the number of iterations
         log_folder_name=f'{save_path}/experiment-{datetime.datetime.now()}', # specify the log folder to store information
-        # search_space_config='classification_models_all.json',
         use_sampling=True, # use sampling to speed up the search
         use_feature_selection=True # use feature selection to speed up the search and improve the model generalization
     )
