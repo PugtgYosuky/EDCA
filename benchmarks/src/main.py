@@ -1,3 +1,7 @@
+"""
+Source code for running the benchmarks using cross-validation
+"""
+
 from copy import deepcopy
 import matplotlib.pyplot as plt
 from utils import *
@@ -11,6 +15,7 @@ warnings.filterwarnings("ignore")
 from edca.encoder import NpEncoder
 import logging
 from edca.utils import class_distribution_distance
+from datetime import datetime
 
 # setup config
 from sklearn import set_config
@@ -85,19 +90,20 @@ def main(config, dataset_name, seed):
     for fold, (train_indexes, test_indexes) in enumerate(data_splits):
         if config.get('run-fold',None) is None or config.get('run-fold', None) == fold + 1:
             print('FOLD', fold + 1)
+            results[f'fold_{fold+1}_info'] = {}
             # split data
             X_train = df.iloc[train_indexes]
             y_train = y.iloc[train_indexes]
             X_test = df.iloc[test_indexes]
             y_test = y.iloc[test_indexes]
-            results['train_data'] = results.get('train_data', []) + [X_train.shape]
-            results['test_data'] = results.get('test_data', []) + [X_test.shape]
-            results['dataset_cdd'] = results.get('dataset_cdd', []) + [class_distribution_distance(np.array(y.value_counts(normalize=True)), y.nunique())]
-            results['train_cdd'] = results.get('original_train_cdd', []) + [class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y.nunique())]
+            results[f'fold_{fold+1}_info']['train_data'] = X_train.shape
+            results[f'fold_{fold+1}_info']['test_data'] = X_test.shape
+            results[f'fold_{fold+1}_info']['dataset_cdd'] = class_distribution_distance(np.array(y.value_counts(normalize=True)), y.nunique())
+            results[f'fold_{fold+1}_info']['train_cdd'] = class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y.nunique())
 
             # test evo framework
             train_models(
-                results,
+                results[f'fold_{fold+1}_info'],
                 X_train,
                 y_train,
                 X_test,
@@ -105,7 +111,9 @@ def main(config, dataset_name, seed):
                 config,
                 experiment_path,
                 fold,
-                seed=seed)
+                save_results=save_results(results, experiment_path),
+                seed=seed
+                )
             
 def update_config_params(config):
     if 'alpha' in config:
@@ -133,13 +141,12 @@ def run_config(config_path, datasets_default):
     
     if len(datasets) == 1 and 'deliveries' in datasets[0]:
         seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
-    
     if config.get('seed', None):
-        seeds_to_run = [config.get('seed')]
+        seeds_to_run = [config['seed']]
     elif config.get('run_all_seeds', False) == False:
         seeds_to_run = [seeds[config.get('seed_pos', 0)]]
     elif config.get('run_all_seeds', False):
-        seeds_to_run = seeds[config.get('seed_pos', 0):]
+        seeds_to_run = seeds[config.get('seed_pos', 0):config.get('seed_end_pos', len(seeds))]
     else:
         seeds_to_run = seeds
 
