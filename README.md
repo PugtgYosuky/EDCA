@@ -1,6 +1,6 @@
 # EDCA – An Evolutionary Data-Centric AutoML Framework for Efficient Pipelines
 
-EDCA is a low-cost AutoML capable of creating simpler but efficient ML solutions.
+EDCA is a low-cost AutoML framework capable of creating simpler but efficient ML solutions.
 
 ## What is EDCA?
 
@@ -22,46 +22,61 @@ Install the conda environment from the yml file with all the dependencies.
 
 Install from the pip requirements (not recommended)
 
-    conda create --name edca python=3.8.16
+    conda create --name edca python=3.11.13
 
     conda activate edca 
 
     pip install -r requirements.txt
 
-
 ## Getting Started
 
-Run the experiments comparing the frameworks.
+Check the tutorial for a in-depth description on how to use EDCA.
 
-    cd src
-    python main.py config.json
+Start by importing it
 
-This enables to run EDCA or two other SOTA frameworks FLAML and TPOT for comparison.
+```python
+
+from edca.evodata import DataCentricAutoML
+
+```
+
+An the, start the optimization using EDCA
+
+```python
+
+automl = DataCentricAutoML(
+    task='classification', # detail the ML task
+    metric='f1', # specify the search metric
+    use_sampling=True, # use sampling to speed up the search
+    use_feature_selection=True # use feature selection to speed up the search and improve the model generalization
+)
+
+# * optimize the ML pipeline with EDCA*
+automl.fit(X_train, y_train)
+```
 
 ## Repository Structure
 
-- ***analysis***: Folder containing all the notebooks to analyze EDCA
-- ***data***: Folder to store data (datasets used, metadata of the datasets, results, etc)
-  - ***dataset***: Stores the datasets used on the experiments
-  - ***metadata***: Contains metadata of the datasets used
-  - ***...***: Other folders will be created with the results after running the experiments
-- ***docs***: Contain documents detailing EDCA and the results achieved with it.
-- ***images***: Stores the images
-- ***src***: Contains the source code of the project
-  - ***edca***: Contains EDCA's source code
-  - ***notebooks***: Contains additional notebooks to transform the results of the raw experiments, retrain individuals and create datasets
-  - ***main.py***: Main file to run the experiments. Receives the ***config.json*** file as a parameter on the terminal
-  - ***utils.py***: Contains functions to test the frameworks
-  - ***config.json***: Contains the config to run EDCA
-  - ***train_flaml.py***: Auxiliary script to retrain the best  solutions found in FLAML with EDCA's selected data after the initial experiments. It is not necessary to run this if both training FLAML and EDCA flags are active when running *main.py*
-  - ***train_tpot.py***: Auxiliary script to retrain the best  solutions found in TPOT with EDCA's selected data after the initial experiments. It is not necessary to run this if both training TPOT and EDCA flags are active when running *main.py*
-  - ***retrain_individual.py***: Auxiliary script in case of required to re-train an individual based on a given config or based on the config achieved by an experiment
+- `*EDCA/analysis*`: scripts for making a statistical analysis of the benchmarks
+- `*EDCA/benchmarks*`: source code for making the benchmarks
+  
+  - `*EDCA/benchmarks/configs*`: configuration files to use on the benchmarks
+  - `*EDCA/benchmarks/src*`: source code for the benchmarks
+
+- `*EDCA/data*`: contains some datasets used on the benchmarks and on the tutorial.
+  
+  - `*EDCA/data/datasets*`: contains the datasets
+  - `*EDCA/data/metadata*`: contains metadata about the OpenML datasets used
+
+- `*EDCA/docs*`: contains the original EDCA paper detailing its process and additional documentation.
+- `*EDCA/edca*`: contains EDCA implementation
+- `*EDCA/tutorials*`: contains a brief hand-on tutorial to use EDCA.
 
 Note: Inside most directories there is a *README.md* detailing its content.
 
 ## Contact
 
-- Joana Simões (<joanasimoes@dei.uc.pt>)
+- Joana Simões (<joanasimoes@dei.uc.pt>) (corresponding author)
 - João Correia (<jncor@dei.uc.pt>)
 
 ## Cite Us
@@ -75,11 +90,12 @@ Note: Inside most directories there is a *README.md* detailing its content.
   year={2024}
 }
 
-@article{simoes2025edca,
+@inproceedings{simoes2025edca,
   title={EDCA--An Evolutionary Data-Centric AutoML Framework for Efficient Pipelines},
   author={Sim{\~o}es, Joana and Correia, Jo{\~a}o},
-  journal={arXiv preprint for the EvoApps 2025},
+  booktitle={International Conference on the Applications of Evolutionary Computation (Part of EvoStar)},
+  pages={71--88},
   year={2025},
-  url={https://arxiv.org/abs/2503.04350}
+  organization={Springer}
 }
 ```
