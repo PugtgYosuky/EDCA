@@ -1,0 +1,15 @@
+services:
+  experiment:
+    build: .
+    image: edca-lab
+    container_name: edca-tutorial
+    volumes:
+      # mount edca src code
+      - ./edca/edca:/app/edca
+      # mount tutorial code
+      - ./tutorials/introduction-to-edca.py:/app/introduction-to-edca.py
+      # mount dataset volume
+      - ./data/datasets:/app/data/datasets
+      # logs volume
+      - ./logs:/app/logs
+    command: conda run --no-capture-output -n edca-lab python introduction-to-edca.py
