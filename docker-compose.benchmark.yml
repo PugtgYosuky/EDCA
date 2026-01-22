@@ -1,0 +1,22 @@
+services:
+  experiment:
+    image: edca-lab
+    container_name: edca-benchmark
+
+    volumes:
+      - ./benchmarks/configs:/app/configs
+      - ./edca/edca:/app/edca
+      - ./data/datasets:/app/data/datasets
+      - ./logs:/app/logs
+      - ./benchmarks/src:/app/src
+
+    working_dir: /app
+
+    environment:
+      - PYTHONPATH=/app
+
+    # ! change the .py script and the configuration file accordingly
+    # change the config to another file or give a directory path if you want to run multiple configurations inside it
+    command: >
+      conda run --no-capture-output -n edca-lab
+      python src/main.py configs/test_config.json
