@@ -176,5 +176,6 @@ cython_debug/
 # ignore computer dependent file to store saving location
 config_variables.py
 
-# ignore test files
+# ignore logs files
 tests/
+logs/
