@@ -10,7 +10,7 @@
     "kfold": 5,
     "run-fold": null,
     "run_all_seeds": true,
-    "seed_pos": 18,
+    "seed_pos": 0,
     "n_iterations": 150,
     "time_budget": 1800,
     "n_jobs": 5,
