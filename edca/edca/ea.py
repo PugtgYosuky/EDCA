@@ -572,9 +572,7 @@ def sample_class_balance_mutation(target, factor=0.5):
     # calculate the mutation probability of each instance
     # prob = factor + ideal proportion (if balance) - class proportion
     prob_array = pd.Series(
-        np.zeros(
-            len(target)),
-        name='prob_muta').astype(float)
+        np.zeros(len(target)), name='prob_muta').astype(float)
     for c in target.unique():
         value = factor + ideal_prop - proportions[c].values[0]
         prob_array.loc[(target == c).values] = value
@@ -583,8 +581,7 @@ def sample_class_balance_mutation(target, factor=0.5):
         for i in range(len(indiv)):
             # change if the value is 0 and as the previous probability or if it
             # is 1 and the probability is greater than the value
-            if (indiv[i] == 0 and np.random.random() <= prob_array[i]) or (
-                    indiv[i] == 1 and np.random.random() > prob_array[i]):
+            if (indiv[i] == 0 and np.random.random() <= prob_array[i]) or (indiv[i] == 1 and np.random.random() > prob_array[i]):
                 indiv[i] = 1 - indiv[i]
         return indiv
     return operator
@@ -712,10 +709,26 @@ def sample_uniform_crossover(indiv_a_sample, indiv_b_sample):
 
 
 def int_point_crossover(chromosome1, chromosome2):
-    point_1 = np.random.randint(0, max(1, len(chromosome1) - 1))
-    point_2 = np.random.randint(0, max(1, len(chromosome2) - 1))
-    chromo1 = list(set(chromosome1[:point_1] + chromosome2[point_2:]))
-    chromo2 = list(set(chromosome2[:point_2] + chromosome1[point_1:]))
+    """Int point crossover. It ensures that the final chromosomes are not empty because of the indexes chosen
+    Parameters:
+    -----------
+    chromosome1 : list
+        Indices list of parent 1
+
+    chromosome2 : list
+        Indices list of parent 2
+
+    Returns:
+    -------
+    list, list
+        Changed indices list of the offsprings
+    """
+    chromo1, chromo2 = [], [] # ensure that the final arrays are not empty
+    while len(chromo1) == 0 or len(chromo2) == 0:
+        point_1 = np.random.randint(0, max(1, len(chromosome1) - 1))
+        point_2 = np.random.randint(0, max(1, len(chromosome2) - 1))
+        chromo1 = list(set(chromosome1[:point_1] + chromosome2[point_2:]))
+        chromo2 = list(set(chromosome2[:point_2] + chromosome1[point_1:]))
     return chromo1, chromo2
 
 

@@ -95,21 +95,6 @@ def models_mutations(config):
 
     return model_mutation
 
-# def instantiate_data_augmentation(augmentation_config, metadata, seed=42):
-#     model_name = list(augmentation_config.keys())[0]
-#     settings = augmentation_config[model_name].copy()
-#     settings['enforce_rounding'] = bool(settings['enforce_rounding'])
-#     settings['enforce_min_max_values'] = bool(settings['enforce_min_max_values'])
-#     sample_percentage = settings.pop('sample_percentage')
-#     if model_name == "GaussianCopulaSynthesizer":
-#         model = GaussianCopulaSynthesizer(metadata=metadata, **settings)
-#     elif model_name == "CTGANSynthesizer":
-#         settings = settings.copy()
-#         settings['verbose'] = False
-#         model = CTGANSynthesizer(metadata=metadata, **settings)
-#     elif model_name == "TVAESynthesizer":
-#         model = TVAESynthesizer(metadata=metadata, **settings)
-#     return model, sample_percentage
 
 def instantiate_model(model_config, seed=42):
     """ Instantiates the classifier given it's name and settings"""
@@ -295,7 +280,6 @@ class NumericEncoder(BaseEstimator):
         return X
 
 
-
 def create_preprocessing_pipeline(
         selected_features,
         pipeline_config,
@@ -323,18 +307,12 @@ def create_preprocessing_pipeline(
     # get features from the pipeline config intersected with the selected features
     
     column_transformer_steps = []
-    numerical_columns = list(
-        set(pipeline_config['numerical_columns']).intersection(set(selected_features)))
-    numerical_with_nans = list(
-        set(pipeline_config['numerical_with_nans']).intersection(set(selected_features)))
-    categorical_columns = list(
-        set(pipeline_config['categorical_columns']).intersection(set(selected_features)))
-    categorical_with_nans = list(set(
-        pipeline_config['categorical_with_nans']).intersection(set(selected_features)))
-    binary_columns = list(
-        set(pipeline_config['binary_columns']).intersection(set(selected_features)))
-    binary_with_nans = list(
-        set(pipeline_config['binary_with_nans']).intersection(set(selected_features)))
+    numerical_columns = list(set(pipeline_config['numerical_columns']).intersection(set(selected_features)))
+    numerical_with_nans = list(set(pipeline_config['numerical_with_nans']).intersection(set(selected_features)))
+    categorical_columns = list(set(pipeline_config['categorical_columns']).intersection(set(selected_features)))
+    categorical_with_nans = list(set(pipeline_config['categorical_with_nans']).intersection(set(selected_features)))
+    binary_columns = list(set(pipeline_config['binary_columns']).intersection(set(selected_features)))
+    binary_with_nans = list(set(pipeline_config['binary_with_nans']).intersection(set(selected_features)))
 
     if len(numerical_columns) > 0:
         # numerical transformer if it has numerical fuatures
