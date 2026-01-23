@@ -231,7 +231,7 @@ def get_selected_data(X_train, y_train, individual_config):
         # select features to use in training
         selected_features = list(X_train.columns)
         if 'features' in individual_config:
-            selected_features = X_train.columns[individual_config['features']]
+            selected_features = X_train.columns[list(individual_config['features'])]
             X_train = X_train[selected_features].copy()
         return X_train, y_train, selected_features
 

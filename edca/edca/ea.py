@@ -301,7 +301,7 @@ def generate_individual(config, pipeline_config, sampling_generator):
         Configuration file with the search space of the different genes
 
     pipeline_config : dict
-        Characteristics od the data to generate the new individual
+        Characteristics of the data to generate the new individual
 
     Returns:
     -------
@@ -329,18 +329,14 @@ def generate_individual(config, pipeline_config, sampling_generator):
             individual['features'] = sampling_generator(pipeline_config['fs_size'])
         
         if pipeline_config['data_augmentation']:
-            individual['data_augmentation'] = generate_model_code(
-                config['data_augmentation']
-            )
+            individual['data_augmentation'] = generate_model_code(config['data_augmentation'])
 
     if len(pipeline_config['numerical_with_nans']) > 0:
-        individual['numerical-imputer'] = generate_model_code(
-            config['numerical-imputer'])
+        individual['numerical-imputer'] = generate_model_code(config['numerical-imputer'])
 
     if len(pipeline_config['categorical_with_nans']) > 0 or len(
             pipeline_config['binary_with_nans']) > 0:
-        individual['categorical-imputer'] = generate_model_code(
-            config['categorical-imputer'])
+        individual['categorical-imputer'] = generate_model_code(config['categorical-imputer'])
 
     if len(pipeline_config['numerical_columns']) > 0:
         individual['scaler'] = generate_scaler_code()
@@ -453,7 +449,7 @@ def generate_sample_code(size):
 
 def generate_integer_representation(chromosome_length):
     """ Generates the code for the sampling component with integer representation"""
-    size = np.random.randint(0, chromosome_length-1)
+    size = np.random.randint(2, chromosome_length-1) # use at least two samples
     values = list(range(chromosome_length))
     individual = list(np.random.choice(values, min(len(values), size), replace=False))
     return individual
@@ -571,8 +567,7 @@ def sample_class_balance_mutation(target, factor=0.5):
     ideal_prop = 1 / target.nunique()
     # calculate the mutation probability of each instance
     # prob = factor + ideal proportion (if balance) - class proportion
-    prob_array = pd.Series(
-        np.zeros(len(target)), name='prob_muta').astype(float)
+    prob_array = pd.Series(np.zeros(len(target)), name='prob_muta').astype(float)
     for c in target.unique():
         value = factor + ideal_prop - proportions[c].values[0]
         prob_array.loc[(target == c).values] = value
@@ -613,16 +608,18 @@ def int_change_mutation(size_neighborhood, dimension, max_number_changes):
         change_indexes = np.random.choice(
             list(range(len(new_chromosome))), size=min(number_changes, len(new_chromosome)), replace=False)  # choose a random index to change
         for change_index in change_indexes:
-            value = new_chromosome[change_index]
-            # choose a random delta
-            delta = np.random.choice(
-                list(range(-size_neighborhood, size_neighborhood)))
-            value += delta
-            # ensure the value is within the limits
-            value = max(0, min(value, dimension - 1))
-            if value not in new_chromosome:
-                # add value to the new chromosome if it is not already in it
-                new_chromosome[change_index] = value
+            current_val = new_chromosome[change_index]
+            # create a range that EXCLUDES 0 so a change is guaranteed
+            possible_deltas = list(range(-size_neighborhood, 0)) + list(range(1, size_neighborhood+1))
+            if not possible_deltas:
+                continue
+                
+            delta = np.random.choice(possible_deltas)
+            new_val = max(0, min(current_val + delta, dimension - 1))
+            
+            # If the new value is unique, apply it, else continue with old value 
+            if new_val not in new_chromosome:
+                new_chromosome[change_index] = new_val
         return new_chromosome
     return change_mutate
 
@@ -633,10 +630,9 @@ def int_delete_mutation(max_number_changes):
             new_chromosome = chromosome.copy()
             number_changes = np.random.randint(1, max(2, max_number_changes))
             for _ in range(number_changes):
-                if len(new_chromosome) == 1:
+                if len(new_chromosome) == 1: # only remove if you have features
                     break
-                delete_index = np.random.choice(
-                    list(range(len(new_chromosome))))
+                delete_index = np.random.choice(list(range(len(new_chromosome))))
                 new_chromosome.pop(delete_index)
             return new_chromosome
         return chromosome.copy()
@@ -654,21 +650,13 @@ def int_add_mutation(dimension, max_number_changes):
         # get the possible candidates to add
         possible_values = list(all_possible_values - chromosome_set)
         number_changes = np.random.randint(1, max(2, max_number_changes))
-        new_genes = list(
-            np.random.choice(
-                possible_values,
-                size=min(
-                    number_changes,
-                    len(possible_values)),
-                replace=False))
+        new_genes = list(np.random.choice(possible_values, size=min(number_changes, len(possible_values)), replace=False))
         new_chromosome = new_chromosome + new_genes
         return new_chromosome
     return add_mutate
 
 
-def crossover_sampling_component(
-        uniform_crossover=True,
-        binary_representation=True):
+def crossover_sampling_component(uniform_crossover=True, binary_representation=True):
     """
     Crossover operator
 
@@ -709,20 +697,6 @@ def sample_uniform_crossover(indiv_a_sample, indiv_b_sample):
 
 
 def int_point_crossover(chromosome1, chromosome2):
-    """Int point crossover. It ensures that the final chromosomes are not empty because of the indexes chosen
-    Parameters:
-    -----------
-    chromosome1 : list
-        Indices list of parent 1
-
-    chromosome2 : list
-        Indices list of parent 2
-
-    Returns:
-    -------
-    list, list
-        Changed indices list of the offsprings
-    """
     chromo1, chromo2 = [], [] # ensure that the final arrays are not empty
     while len(chromo1) == 0 or len(chromo2) == 0:
         point_1 = np.random.randint(0, max(1, len(chromosome1) - 1))

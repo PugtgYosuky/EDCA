@@ -416,14 +416,11 @@ class DataCentricAutoML(BaseEstimator):
 
         # select crossover operator
         if self.uniform_crossover:
-            crossover_operator = uniform_crossover(
-                binary_representation=self.binary_sampling_component)
+            crossover_operator = uniform_crossover(binary_representation=self.binary_sampling_component)
         else:
-            crossover_operator = points_crossover(
-                binary_representation=self.binary_sampling_component)
+            crossover_operator = points_crossover(binary_representation=self.binary_sampling_component)
 
-        sampling_generator = generate_sampling_component(
-            binary_representation=self.binary_sampling_component)
+        sampling_generator = generate_sampling_component(binary_representation=self.binary_sampling_component)
 
         mutation_operator = mutation_individuals(
             prob_mutation=self.prob_mutation,
@@ -516,5 +513,3 @@ class DataCentricAutoML(BaseEstimator):
             return self.get_final_data()
         return self.selected_X_train, self.selected_y_train
     
-    
-
