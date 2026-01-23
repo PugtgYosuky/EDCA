@@ -55,6 +55,16 @@ automl = DataCentricAutoML(
 automl.fit(X_train, y_train)
 ```
 
+To run the tutorial or the benchmark using Docker, change the code and configuration files, accordingly, and then run:
+
+- for the benchmark
+
+      docker compose -f docker-compose.benchmark.yml -p edca-benchmark up
+
+- for the tutorial
+
+      docker compose -f docker-compose.tutorial.yml -p edca-tutorial up
+
 ## Repository Structure
 
 - `*EDCA/analysis*`: scripts for making a statistical analysis of the benchmarks
