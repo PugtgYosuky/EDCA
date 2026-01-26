@@ -330,20 +330,22 @@ def generate_individual(config, pipeline_config, sampling_generator):
         
         if pipeline_config['data_augmentation']:
             individual['data_augmentation'] = generate_model_code(config['data_augmentation'])
+    # add preprocessing
+    if pipeline_config['make_preprocessing']:
+        if len(pipeline_config['numerical_with_nans']) > 0:
+            individual['numerical-imputer'] = generate_model_code(config['numerical-imputer'])
 
-    if len(pipeline_config['numerical_with_nans']) > 0:
-        individual['numerical-imputer'] = generate_model_code(config['numerical-imputer'])
+        if len(pipeline_config['categorical_with_nans']) > 0 or len(
+                pipeline_config['binary_with_nans']) > 0:
+            individual['categorical-imputer'] = generate_model_code(config['categorical-imputer'])
 
-    if len(pipeline_config['categorical_with_nans']) > 0 or len(
-            pipeline_config['binary_with_nans']) > 0:
-        individual['categorical-imputer'] = generate_model_code(config['categorical-imputer'])
+        if len(pipeline_config['numerical_columns']) > 0:
+            individual['scaler'] = generate_scaler_code()
 
-    if len(pipeline_config['numerical_columns']) > 0:
-        individual['scaler'] = generate_scaler_code()
+        if len(pipeline_config['categorical_columns']) > 0:
+            individual['encoder'] = generate_model_code(config['encoder'])
 
-    if len(pipeline_config['categorical_columns']) > 0:
-        individual['encoder'] = generate_model_code(config['encoder'])
-
+    # FLAML for HPO
     if not pipeline_config.get('flaml_ms', False): 
         # if the flaml model selection is activated, it does not uses the model gene
         individual['model'] = generate_model_code(config['model'])

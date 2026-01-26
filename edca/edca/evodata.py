@@ -53,6 +53,7 @@ class DataCentricAutoML(BaseEstimator):
             n_jobs=1, 
             flaml_ms=False,
             fairness_params={},
+            optimize_preprocessing=True,
             seed=42):
         """
         Initialization of the class
@@ -156,6 +157,9 @@ class DataCentricAutoML(BaseEstimator):
 
         flaml_ms : bool
             To use the FLAML model selection or not.
+
+        optimize_preprocessing : bool
+            Whether or not to optimize the preprocessing based on the data characteristics
         
         seed : integer
             Seed to use in the process
@@ -203,6 +207,7 @@ class DataCentricAutoML(BaseEstimator):
         self.mutation_size_neighborhood = mutation_size_neighborhood
         self.mutation_percentage_change = mutation_percentage_change
         self.retrain_all_data = retrain_all_data
+        self.optimize_preprocessing = optimize_preprocessing
         self.flaml_ms = flaml_ms
         self.search_space_config = search_space_config
 
@@ -300,6 +305,8 @@ class DataCentricAutoML(BaseEstimator):
 
         # analyse the dataset. Uses only the train data no analyse the results
         self.pipeline_config = dataset_analysis(self.internal_x_train)
+        # option to optimize or not the preprocessing
+        self.pipeline_config['make_preprocessing'] = self.optimize_preprocessing
         # add the sampling config
         self.pipeline_config['sampling'] = self.use_sampling
         self.pipeline_config['feature_selection'] = self.use_feature_selection

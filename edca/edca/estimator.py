@@ -56,6 +56,7 @@ class PipelineEstimator(BaseEstimator):
         self.train_time = None # all the time spent in training the model (model training time + data processing time)
         self.prediction_time = None # time spent in predicting the model
         self.fairness_params = fairness_params
+        self.pipeline = None
 
     def fit(self, X, y, seed=42):
         """
@@ -91,13 +92,16 @@ class PipelineEstimator(BaseEstimator):
         self.X_train, self.y_train, self.selected_features = get_selected_data(self.X_train, self.y_train, self.individual_config)
 
         # create preprocessing pipeline
-        self.pipeline = create_preprocessing_pipeline(
-            selected_features=self.selected_features,
-            pipeline_config=self.pipeline_config,
-            individual=self.individual_config,
-            numeric_encodings=self.fairness_params.get('bin_class', None)
-        ).fit(self.X_train)
-        self.X_training = self.pipeline.transform(self.X_train)
+        if self.pipeline_config['make_preprocessing']:
+            self.pipeline = create_preprocessing_pipeline(
+                selected_features=self.selected_features,
+                pipeline_config=self.pipeline_config,
+                individual=self.individual_config,
+                numeric_encodings=self.fairness_params.get('bin_class', None)
+            ).fit(self.X_train)
+            self.X_train_transformed = self.pipeline.transform(self.X_train)
+        else:
+            self.X_train_transformed = self.X_train
         # encode the target class for classification tasks
         if self.pipeline_config['task'] == 'classification':
             self.y_encoder = LabelEncoder()
@@ -110,7 +114,7 @@ class PipelineEstimator(BaseEstimator):
         start_time = time.time()
         if self.pipeline_config.get('flaml_ms', False) == False:
             self.model = instantiate_model(self.individual_config.get('model'), seed=self.pipeline_config.get('seed'))
-            self.model.fit(np.array(self.X_training), self.y_train_encoded)
+            self.model.fit(np.array(self.X_train_transformed), self.y_train_encoded)
 
         else:
             # use FLAML
@@ -142,7 +146,7 @@ class PipelineEstimator(BaseEstimator):
                 settings['log_file_name'] = ''
                 
             self.model = AutoML(**settings)
-            self.model.fit(X_train=self.X_training, y_train=self.y_train_encoded, seed=self.pipeline_config['seed'])
+            self.model.fit(X_train=self.X_train_transformed, y_train=self.y_train_encoded, seed=self.pipeline_config['seed'])
         
         self.model_training_time = time.time() - start_time
         self.train_time = self.model_training_time + self.data_processing_time
@@ -168,7 +172,8 @@ class PipelineEstimator(BaseEstimator):
         start_time = time.time()
         X_test = X.copy()
         X_test = X_test[self.selected_features]
-        X_test = self.pipeline.transform(X_test)
+        if self.pipeline is not None and self.pipeline_config['make_preprocessing']:
+            X_test = self.pipeline.transform(X_test)
         preds = self.model.predict(np.array(X_test))
         # decode the target class for classification tasks
         if self.pipeline_config['task'] == 'classification':
@@ -194,7 +199,8 @@ class PipelineEstimator(BaseEstimator):
         """
         X_test = X.copy()
         X_test = X_test[self.selected_features]
-        X_test = self.pipeline.transform(X_test)
+        if self.pipeline is not None and self.pipeline_config['make_preprocessing']:
+            X_test = self.pipeline.transform(X_test)
         return self.model.predict_proba(np.array(X_test))
 
     def get_best_sample_data(self):

@@ -97,6 +97,11 @@ Whether to use FLAML for model selection and HPO (experimental).
 Dictionary with parameters for fairness-aware optimization. See details below.
 **Default:** `{}`
 
+`optimize_preprocessing`[bool]:
+Whether or not to include and optimize data preprocessing based on data characteristics
+
+**Default:** `True`
+
 ### Fitness component parameters
 
 The fitness functions can contain several components. Therefore, each component has a weight associated so that in the end we could calculate the weighted sum to calculate the fitness of the individuals. These components evaluate several aspects of the individuals. The parameters should be

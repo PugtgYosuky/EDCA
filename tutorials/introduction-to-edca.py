@@ -73,7 +73,8 @@ if __name__ == '__main__':
         n_iterations=50, # specify the number of iterations
         log_folder_name=f'{save_path}/experiment-{datetime.datetime.now()}', # specify the log folder to store information
         use_sampling=True, # use sampling to speed up the search
-        use_feature_selection=True # use feature selection to speed up the search and improve the model generalization
+        use_feature_selection=True, # use feature selection to speed up the search and improve the model generalization
+        optimize_preprocessing=True
     )
 
     # * optimize the ML pipeline with EDCA*
