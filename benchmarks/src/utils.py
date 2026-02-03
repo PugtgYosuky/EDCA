@@ -10,6 +10,9 @@ from sklearn.base import clone  # to clone models
 from sklearn.preprocessing import LabelEncoder  # to encode y
 from sklearn.model_selection import StratifiedKFold, train_test_split, PredefinedSplit  # to divide data
 import traceback
+import sys
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+sys.path.insert(0, REPO_ROOT)
 from edca.utils import class_distribution_distance, fairness_metric
 
 from edca.encoder import NpEncoder  # to encode dict to json

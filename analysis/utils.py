@@ -10,11 +10,12 @@ import fairlearn.metrics as fair_metrics
 import pickle
 
 import sys
-sys.path.append('../')
-from src.edca.utils import abroca_metric
+
+sys.path.append('../edca')
+from edca.utils import abroca_metric
 
 import sys
-sys.path.append('../src')
+sys.path.append('../edca')
 from edca.utils import class_distribution_distance
 
 def calculate_mean(data, name, show_std=True):
@@ -511,13 +512,17 @@ def get_experiment_avg_results(run_path, dataset, setup):
     avg_data['num_evaluated_individuals'] = np.nanmean(evaluated_individuals)
     return [avg_data]
 
-
+'''
 def get_framework_results(experiment, dataset, setup, calculation_type='avg'):
     # calculates the results for each experiment
     data = []
     experiments = [exp for exp in sorted(os.listdir(experiment)) if exp.startswith('exp')]
+    if len(experiments) == 0:
+        experiments = [None] 
+    
     for exp in tqdm(experiments):
         try:
+            run_path = experiment if exp is None else os.path.join(experiment, exp)
             if calculation_type == 'avg':
                 # calculate the avg of each run
                 data += get_experiment_avg_results(os.path.join(experiment, exp), dataset, setup=setup)
@@ -529,6 +534,37 @@ def get_framework_results(experiment, dataset, setup, calculation_type='avg'):
             print(e)
             continue
     return data
+'''
+
+def get_framework_results(experiment, dataset, setup, calculation_type='avg'):
+    data = []
+
+    experiments = [exp for exp in sorted(os.listdir(experiment)) if exp.startswith('exp')]
+
+    # DEBUG (deixa isto por agora)
+    print("DEBUG experiments before fallback:", experiments)
+
+    # fallback quando experiment já é a pasta de uma run
+    if len(experiments) == 0:
+        experiments = [None]
+
+    print("DEBUG experiments after fallback:", experiments)
+
+    for exp in tqdm(experiments):
+        try:
+            run_path = experiment if exp is None else os.path.join(experiment, exp)
+
+            if calculation_type == 'avg':
+                data += get_experiment_avg_results(run_path, dataset, setup=setup)
+            else:
+                data += get_experiment_results(run_path, dataset, setup=setup)
+
+        except Exception as e:
+            print(e)
+            continue
+
+    return data
+
 
 
 def get_results_df(datasets, frameworks, experimentation_name, checkpoints_path='', start_name='edca', calculation_type='all'):
@@ -551,7 +587,19 @@ def get_results_df(datasets, frameworks, experimentation_name, checkpoints_path=
             try:
                 if key not in df_by_framework_dataset:
                     df_by_framework_dataset[key] = {}
-                df_by_framework_dataset[key][dataset] = get_framework_results(f'{experiment}/{dataset}', dataset, start_name, calculation_type=calculation_type)
+                base_path = experiment
+
+                # if experiment already points to a single run folder, don't append dataset
+                candidate = os.path.join(base_path, dataset)
+                if os.path.isdir(candidate):
+                    exp_path = candidate
+                else:
+                    exp_path = base_path
+
+                df_by_framework_dataset[key][dataset] = get_framework_results(
+                    exp_path, dataset, start_name, calculation_type=calculation_type
+                )         
+
 
             except Exception as e:
                 print(e)

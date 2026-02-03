@@ -1,14 +1,14 @@
 {
     "openml_splits": false,
     "task": "classification",
-    "dataset": ["Australian.csv"],
+    "dataset": ["exp2_MedViT-nopt"],
     "save_path": "testing",
     "kfold": 5,
-    "run-fold": 3,
+    "run-fold": null,
     "run_all_seeds": false,
     "seed_pos": 0,
-    "n_iterations": 150,
-    "time_budget": 60,
+    "n_iterations": 500,
+    "time_budget": -1,
     "n_jobs": 1,
     "metric": "f1",
     "validation_size": 0.25,
@@ -19,7 +19,7 @@
     "tpot_template": "Selector-Transformer-Classifier",
 
     "verbose": 5,
-    "population": 15,
+    "population": 25,
     "prob_mutations": 0.3,
     "prob_mutation_model": 0.5,
     "prob_crossover": 0.8,
@@ -30,14 +30,15 @@
     "sampling": true,
     "feature_selection": true,
     "data_augmentation": false,
+    
     "fitness_params" : {
-        "metric": 0.4,
+        "metric": 0.4, 
         "data_size": 0,
         "training_time": 0,
         "balance_metric": 0.4,
         "fairness_metric": 0.2
     },
-    
+
     "class_balance_mutation": true,
     "mutation_factor": 0.5,
     "uniform_crossover": false,

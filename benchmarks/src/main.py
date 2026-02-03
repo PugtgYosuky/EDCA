@@ -21,8 +21,8 @@ from datetime import datetime
 from sklearn import set_config
 set_config(transform_output='pandas')
 
-DEFAULT_SAVE_DIR = '.'
-DEFAULT_DATASETS_SRC_DIR = '../datasets'
+DEFAULT_SAVE_DIR = 'logs/exp2'
+DEFAULT_DATASETS_SRC_DIR = 'data/datasets'
 
 # attempt to import served dependent variables
 try:
@@ -56,6 +56,7 @@ plt.rcParams.update({
 
 
 def main(config, dataset_name, seed):
+    '''
     # load dataset
     dataset = os.path.join(DATASETS_SRC_DIR, dataset_name)
     df = pd.read_csv(dataset)
@@ -68,13 +69,14 @@ def main(config, dataset_name, seed):
         data_splits = get_openml_splits(task_id)
     else:
         data_splits = get_kfold_splits(df, y, k=config.get('kfold', 5), seed=seed)
-
+    '''
     # create experiments folder divided by dataset name
     experiment_path = os.path.join(SAVE_DIR, config['save_path'], dataset_name.split('.')[0], f'exp_{datetime.now()}')
     os.makedirs(experiment_path, exist_ok=True)
     # os.makedirs(os.path.join(experiment_path, 'data'))
     # save config
-    config['dataset'] = dataset
+    dataset_base = os.path.join(DATASETS_SRC_DIR, dataset_name)
+    config['dataset'] = dataset_base
     if config.get('fairness_params', None):
         config['fairness_params'] = config['fairness_params'][dataset_name]
     
@@ -86,31 +88,48 @@ def main(config, dataset_name, seed):
 
     # kfold to evaluate the frameworks
     results = {}
-    results['dataset'] = dataset
-    for fold, (train_indexes, test_indexes) in enumerate(data_splits):
-        if config.get('run-fold',None) is None or config.get('run-fold', None) == fold + 1:
-            print('FOLD', fold + 1)
-            results[f'fold_{fold+1}_info'] = {}
-            # split data
-            X_train = df.iloc[train_indexes]
-            y_train = y.iloc[train_indexes]
-            X_test = df.iloc[test_indexes]
-            y_test = y.iloc[test_indexes]
-            results[f'fold_{fold+1}_info']['train_data'] = X_train.shape
-            results[f'fold_{fold+1}_info']['test_data'] = X_test.shape
-            results[f'fold_{fold+1}_info']['dataset_cdd'] = class_distribution_distance(np.array(y.value_counts(normalize=True)), y.nunique())
-            results[f'fold_{fold+1}_info']['train_cdd'] = class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y.nunique())
+    results['dataset'] = dataset_base
+    n_folds = config.get('n_folds', 3)
+    train_filename = config.get('train_filename', 'fusion_projected_train.csv')
+    test_filename  = config.get('test_filename',  'fusion_projected_test.csv')
+
+    for i in range (1, n_folds + 1 ):
+        if config.get('run-fold',None) is None or config.get('run-fold', None) == i:
+            print('FOLD', i)
+            results[f'fold_{i}_info'] = {}
+
+            # fold paths (cv{i})
+            fold_dir = os.path.join(DATASETS_SRC_DIR, dataset_name, f'cv{i}',f'medvit_nopt_bs16_cv{i}_seed10')
+            train_path = os.path.join(fold_dir, train_filename)
+            test_path = os.path.join(fold_dir, test_filename)
+
+            X_train = pd.read_csv(train_path)
+            X_test = pd.read_csv(test_path)
+            y_train = X_train.pop('label')
+            y_test = X_test.pop('label')
+
+            results[f'fold_{i}_info']['train_data'] = X_train.shape
+            results[f'fold_{i}_info']['test_data'] = X_test.shape
+            results[f'fold_{i}_info']['dataset_cdd'] = class_distribution_distance(
+                np.array(pd.concat([y_train, y_test]).value_counts(normalize=True)),
+                pd.concat([y_train, y_test]).nunique()
+            )
+            results[f'fold_{i}_info']['train_cdd'] = class_distribution_distance(
+                np.array(y_train.value_counts(normalize=True)),
+                y_train.nunique()
+            )
+
 
             # test evo framework
             train_models(
-                results[f'fold_{fold+1}_info'],
+                results[f'fold_{i}_info'],
                 X_train,
                 y_train,
                 X_test,
                 y_test,
                 config,
                 experiment_path,
-                fold,
+                i-1,
                 save_results=save_results(results, experiment_path),
                 seed=seed
                 )
@@ -168,15 +187,7 @@ def run_config(config_path, datasets_default):
 
 if __name__ == '__main__':
     datasets_default = [
-        'mfeat-factors.csv',
-        'Australian.csv',
-        'credit-g.csv',
-        'cnae-9.csv',
-        'kr-vs-kp.csv',
-        'adult.csv',
-        'PT_CA_deliveries.csv',
-        'APSFailure.csv'
-        'bank-marketing.csv',
+        'exp2_MedViT-nopt'
     ]
 
     if sys.argv[1].endswith('json'):

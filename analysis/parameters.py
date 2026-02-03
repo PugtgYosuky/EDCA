@@ -1,4 +1,4 @@
-datasets = ['Australian', 'cnae-9', 'credit-g', 'mfeat-factors']
+datasets = ['exp2_MedViT-nopt']
 # datasets = ['adult', 'credit-card', 'portuguese-bank-marketing']
 # frameworks = {
 #     'Baseline' : '../../../../../Volumes/JoSandisk/research/experiments/fairness-aware-edca/cv/edca-mcc-recall-baseline',
@@ -14,22 +14,21 @@ datasets = ['Australian', 'cnae-9', 'credit-g', 'mfeat-factors']
 #     'Baseline' : rgb255((60, 60, 60)),
 #     'Fairness-Aware' : rgb255((175, 175, 175))
 # }
+frameworks_palette = {'EDCA': (0.3, 0.3, 0.3)}  # grey
 
 frameworks = {
-    'Baseline' :  '../../../../../data/edca/experiments/30-min/paper-epm/baseline',
-    'Static EPM' :  '../../../../../data/edca/experiments/30-min/paper-epm/static-epm',
-    'Static EPM 50' :  '../../../../../data/edca/experiments/30-min/paper-epm/static-epm-50',
-    'Dynamic EPM' :  '../../../../../data/edca/experiments/30-min/paper-epm/dynamic-epm',
-    'Dynamic EPM 50' :  '../../../../../data/edca/experiments/30-min/paper-epm/dynamic-epm-50',
+    'EDCA': '../logs/exp1/testing/exp2_MedViT-nopt/exp_2026-01-29 15:41:04.605647'
 }
 
-save_path = '../../../../../data/edca/experiments/30-min/paper-epm/data'
+start_name = 'edca'
+
+save_path = '../logs/exp1/testing/exp2_MedViT-nopt/exp_2026-01-29 15:41:04.605647'
 # save_path = '../tests/experiments/paper-fairness'
 
-experimentation_name = 'estimation-paper'
+experimentation_name = 'exp1-first'
 # experimentation_name = 'fairness-paper'
 
-images_dir = '../images/estimation'
+images_dir = '../images/exp1-first'
 # images_dir = '../images/fairness-v2'
 
 fairness_parameters =  {

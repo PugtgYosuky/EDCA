@@ -3,8 +3,9 @@ import pandas as pd
 import numpy as np
 import os
 import json
-from utils import get_results_dataframe, get_results_df
-from visuals import boxplot_ax
+#from utils import get_results_dataframe, get_results_df
+from utils import get_results_df
+#from visuals import boxplot_ax
 import numpy as np
 from stats import statistical_test_repeated
 import matplotlib.pyplot as plt
@@ -17,14 +18,49 @@ from scipy import stats
 import warnings
 warnings.filterwarnings("ignore")
 
+import os
+
+base = "../logs/exp1/testing/exp2_MedViT-nopt/exp_2026-01-29 15:41:04.605647/edca"
+for d in os.listdir(base):
+    print(d, "->", os.listdir(os.path.join(base, d)))
+
 # %%
 df_by_framework_dataset, df_by_dataset = get_results_df(
     datasets, 
     frameworks, 
     experimentation_name=f'{experimentation_name}_all', 
-    start_name='evo', 
-    checkpoints_path=save_path,
+    start_name='edca', 
+    checkpoints_path='',
     calculation_type='all')
+
+print(df_by_framework_dataset.keys())
+print(df_by_framework_dataset['EDCA'].keys())  # troca 'EDCA' pelo nome da tua framework
+print(len(df_by_framework_dataset['EDCA']['exp2_MedViT-nopt']))
+
+print(df_by_dataset['exp2_MedViT-nopt'].shape)
+#display(df_by_dataset['exp2_MedViT-nopt'].head())
+
+df = df_by_dataset['exp2_MedViT-nopt'].copy()
+
+# escolhe as métricas que queres ver (ajusta se alguma não existir)
+metrics_to_show = ['f1', 'mcc', 'recall', 'data_%', 'sample_%', 'features_%', 'num_iterations', 'num_evaluated_individuals']
+metrics_to_show = [m for m in metrics_to_show if m in df.columns]
+
+print("=== Resultados por CV ===")
+print(df[['framework'] + metrics_to_show].to_string(index=False))
+
+df = df_by_dataset['exp2_MedViT-nopt'].copy()
+
+metrics_to_show = ['f1', 'mcc', 'recall', 'data_%', 'sample_%', 'features_%', 'num_iterations', 'num_evaluated_individuals']
+metrics_to_show = [m for m in metrics_to_show if m in df.columns]
+
+summary = df[metrics_to_show].agg(['mean', 'std']).T
+summary['mean±std'] = summary.apply(lambda r: f"{r['mean']:.4f} ± {r['std']:.4f}", axis=1)
+
+print("\n=== Média ± Std (3 CVs) ===")
+print(summary[['mean±std']].to_string())
+
+
 
 # %%
 fig, axs = plt.subplots(ncols=len(df_by_dataset.keys()), figsize=(len(datasets)*6, 5))
