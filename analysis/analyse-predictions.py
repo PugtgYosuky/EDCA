@@ -141,7 +141,7 @@ def analyze_predictions(experiments_root, output_file):
 
 if __name__ == "__main__":
   
-    EXPERIMENTS_ROOT = "../logs/MedViT2-nopt/raw_img_raw_tab/exp2"
-    OUTPUT_FILE = "../results/metrics_predictions_MedViT2_nopt.xlsx"
+    EXPERIMENTS_ROOT = "../logs/MedViT2-nopt/img_proj_tab/exp1"
+    OUTPUT_FILE = "../results/img_proj_tab/exp1/metrics_predictions_MedViT2_nopt.xlsx"
 
     analyze_predictions(EXPERIMENTS_ROOT, OUTPUT_FILE)
