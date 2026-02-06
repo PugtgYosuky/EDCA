@@ -1,3 +1,4 @@
+
 """
 Source code for running the benchmarks using cross-validation
 """
@@ -21,7 +22,7 @@ from datetime import datetime
 from sklearn import set_config
 set_config(transform_output='pandas')
 
-DEFAULT_SAVE_DIR = 'logs/exp2'
+DEFAULT_SAVE_DIR = 'logs'
 DEFAULT_DATASETS_SRC_DIR = 'data/datasets'
 
 # attempt to import served dependent variables
@@ -56,27 +57,35 @@ plt.rcParams.update({
 
 
 def main(config, dataset_name, seed):
-    '''
     # load dataset
-    dataset = os.path.join(DATASETS_SRC_DIR, dataset_name)
-    df = pd.read_csv(dataset)
-    y = df.pop('class')
+    train_path = os.path.join(DATASETS_SRC_DIR, config.get('train_dataset', dataset_name))
+    test_path = os.path.join(DATASETS_SRC_DIR, config['test_dataset'])
+    
+    label_col = config.get('label_col', 'Class')
+    drop_cols = config.get('drop_cols', [])
 
-    if config['openml_splits']:
-        metadata = pd.read_csv(os.path.join('..', 'metadata_tasks.csv'))
-        task = metadata.loc[metadata.name == dataset_name.split('.')[0], 'task'].values[0]
-        task_id = task.split('/')[-1]
-        data_splits = get_openml_splits(task_id)
-    else:
-        data_splits = get_kfold_splits(df, y, k=config.get('kfold', 5), seed=seed)
-    '''
+    df_train = pd.read_csv(train_path)
+    df_test  = pd.read_csv(test_path)
+    y_train = df_train.pop(label_col)
+    y_test = df_test.pop(label_col)
+
+    # drop Processo
+    for c in drop_cols:
+        if c in df_train.columns:
+            df_train = df_train.drop(columns=[c])
+        if c in df_test.columns:
+            df_test = df_test.drop(columns=[c])
+    
+    df_test = df_test[df_train.columns]
+
+    
     # create experiments folder divided by dataset name
-    experiment_path = os.path.join(SAVE_DIR, config['save_path'], dataset_name.split('.')[0], f'exp_{datetime.now()}')
+    experiment_path = os.path.join(SAVE_DIR, config['save_path'], f'exp_{datetime.now()}')
     os.makedirs(experiment_path, exist_ok=True)
     # os.makedirs(os.path.join(experiment_path, 'data'))
     # save config
-    dataset_base = os.path.join(DATASETS_SRC_DIR, dataset_name)
-    config['dataset'] = dataset_base
+    config['train_path'] = train_path
+    config['test_path'] = test_path
     if config.get('fairness_params', None):
         config['fairness_params'] = config['fairness_params'][dataset_name]
     
@@ -88,51 +97,32 @@ def main(config, dataset_name, seed):
 
     # kfold to evaluate the frameworks
     results = {}
-    results['dataset'] = dataset_base
-    n_folds = config.get('n_folds', 3)
-    train_filename = config.get('train_filename', 'fusion_projected_train.csv')
-    test_filename  = config.get('test_filename',  'fusion_projected_test.csv')
+    results['train_path'] = train_path
+    results['test_path'] = test_path
 
-    for i in range (1, n_folds + 1 ):
-        if config.get('run-fold',None) is None or config.get('run-fold', None) == i:
-            print('FOLD', i)
-            results[f'fold_{i}_info'] = {}
+    results['run_info'] = {
+        'train_data': df_train.shape,
+        'test_data': df_test.shape,
+        'train_cdd': class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique()),
+        'test_cdd': class_distribution_distance(np.array(y_test.value_counts(normalize=True)), y_test.nunique()),
+    }
 
-            # fold paths (cv{i})
-            fold_dir = os.path.join(DATASETS_SRC_DIR, dataset_name, f'cv{i}',f'medvit_nopt_bs16_cv{i}_seed10')
-            train_path = os.path.join(fold_dir, train_filename)
-            test_path = os.path.join(fold_dir, test_filename)
-
-            X_train = pd.read_csv(train_path)
-            X_test = pd.read_csv(test_path)
-            y_train = X_train.pop('label')
-            y_test = X_test.pop('label')
-
-            results[f'fold_{i}_info']['train_data'] = X_train.shape
-            results[f'fold_{i}_info']['test_data'] = X_test.shape
-            results[f'fold_{i}_info']['dataset_cdd'] = class_distribution_distance(
-                np.array(pd.concat([y_train, y_test]).value_counts(normalize=True)),
-                pd.concat([y_train, y_test]).nunique()
-            )
-            results[f'fold_{i}_info']['train_cdd'] = class_distribution_distance(
-                np.array(y_train.value_counts(normalize=True)),
-                y_train.nunique()
-            )
-
-
-            # test evo framework
-            train_models(
-                results[f'fold_{i}_info'],
-                X_train,
+    # test evo framework
+    train_models(
+        results['run_info'],
+                df_train,
                 y_train,
-                X_test,
+                df_test,
                 y_test,
                 config,
                 experiment_path,
-                i-1,
+                0,
                 save_results=save_results(results, experiment_path),
                 seed=seed
                 )
+
+    
+            
             
 def update_config_params(config):
     if 'alpha' in config:
@@ -156,10 +146,12 @@ def run_config(config_path, datasets_default):
     datasets = config.get('dataset', datasets_default)
 
     # setup seeds
-    seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283, 28, 298, 557, 309, 822, 569, 825, 185, 574, 325, 844, 90, 219, 864, 872, 618, 747, 365, 237, 767]
+    #seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283, 28, 298, 557, 309, 822, 569, 825, 185, 574, 325, 844, 90, 219, 864, 872, 618, 747, 365, 237, 767]
+    seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283]
     
     if len(datasets) == 1 and 'deliveries' in datasets[0]:
-        seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
+        #seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
+        seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890]
     if config.get('seed', None):
         seeds_to_run = [config['seed']]
     elif config.get('run_all_seeds', False) == False:
@@ -187,7 +179,7 @@ def run_config(config_path, datasets_default):
 
 if __name__ == '__main__':
     datasets_default = [
-        'exp2_MedViT-nopt'
+        'MedViT2-nopt',
     ]
 
     if sys.argv[1].endswith('json'):

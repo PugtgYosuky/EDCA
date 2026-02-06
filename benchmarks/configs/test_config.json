@@ -1,11 +1,14 @@
 {
     "openml_splits": false,
     "task": "classification",
-    "dataset": ["exp2_MedViT-nopt"],
-    "save_path": "testing",
+    "train_dataset": "MedViT2-nopt/all_data/retrospective/retrospective_fusion_img_emb_plus_raw_features.csv",
+    "test_dataset": "MedViT2-nopt/all_data/prospective/prospective_fusion_img_emb_plus_raw_features.csv",
+    "label_col": "Class",
+    "drop_cols": ["Processo"],
+    "save_path": "MedViT2-nopt/img_raw_features/exp1",
     "kfold": 5,
     "run-fold": null,
-    "run_all_seeds": false,
+    "run_all_seeds": true,
     "seed_pos": 0,
     "n_iterations": 500,
     "time_budget": -1,
@@ -19,7 +22,7 @@
     "tpot_template": "Selector-Transformer-Classifier",
 
     "verbose": 5,
-    "population": 25,
+    "population": 10,
     "prob_mutations": 0.3,
     "prob_mutation_model": 0.5,
     "prob_crossover": 0.8,
@@ -32,11 +35,11 @@
     "data_augmentation": false,
     
     "fitness_params" : {
-        "metric": 0.4, 
+        "metric": 1, 
         "data_size": 0,
         "training_time": 0,
-        "balance_metric": 0.4,
-        "fairness_metric": 0.2
+        "balance_metric": 0,
+        "fairness_metric": 0
     },
 
     "class_balance_mutation": true,
@@ -47,5 +50,7 @@
     "sampling_start": 0,
     "mutation_size_neighborhood": 10,
     "mutation_percentage_change": 0.1,
-    "flaml_ms": false
+    "flaml_ms": false,
+    "search_space_config": "classification_models_all.json"
+
 }

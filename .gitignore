@@ -179,3 +179,4 @@ config_variables.py
 # ignore logs files
 tests/
 logs/
+_recovered_logs/

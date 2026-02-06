@@ -13,12 +13,7 @@ from sklearn.metrics import (
     roc_auc_score
 )
 
-# ======================================================
-# MÉTRICAS (igual às que enviaste)
-# ======================================================
-
 def calculate_metrics(y_test, y_pred, y_proba_1):
-
     balanced_accuracy = balanced_accuracy_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred, average="weighted", zero_division=1)
     recall = recall_score(y_test, y_pred, average="weighted")
@@ -37,90 +32,116 @@ def calculate_metrics(y_test, y_pred, y_proba_1):
 
     return {
         "balanced_accuracy": balanced_accuracy,
-        "accuracy": acc,
         "precision": precision,
         "recall": recall,
         "f1": f1,
         "roc_auc": roc_auc,
         "matthews": matthews,
-        "tpr": tpr,
         "tnr": tnr,
         "specificity": specificity,
         "tp": tp,
-        "fp": fp,
         "fn": fn,
+        "fp": fp,
         "tn": tn,
     }
 
-
-# ======================================================
-# PROCESSAR UM FICHEIRO CSV
-# ======================================================
-
 def process_prediction_file(csv_path):
-
     df = pd.read_csv(csv_path)
 
-    y_test = df["y_test"].values
+    # ---- adapt column names if needed ----
+    # Your earlier file used y_true/y_pred/y_proba_1, but this script expects y_test/y_pred/y_proba_1
+    if "y_test" in df.columns:
+        y_test = df["y_test"].values
+    elif "y_true" in df.columns:
+        y_test = df["y_true"].values
+    else:
+        raise ValueError(f"Missing y_test/y_true in {csv_path}")
+
+    if "y_pred" not in df.columns:
+        raise ValueError(f"Missing y_pred in {csv_path}")
     y_pred = df["y_pred"].values
-    y_proba_1 = df["y_proba_1"].values
+
+    if "y_proba_1" in df.columns:
+        y_proba_1 = df["y_proba_1"].values
+    elif "prob_1" in df.columns:
+        y_proba_1 = df["prob_1"].values
+    else:
+        raise ValueError(f"Missing y_proba_1 (or prob_1) in {csv_path}")
 
     return calculate_metrics(y_test, y_pred, y_proba_1)
 
+def find_prediction_csvs(experiments_root):
+    """
+    Finds prediction CSVs inside each exp_* folder, supporting both:
+      exp_*/edca/predictions/*.csv
+      exp_*/edca/edca_fold*/predictions/*.csv
+    Returns list of (exp_name, csv_path).
+    """
+    out = []
+    for exp in sorted(os.listdir(experiments_root)):
+        exp_dir = os.path.join(experiments_root, exp)
+        if not os.path.isdir(exp_dir) or not exp.startswith("exp_"):
+            continue
 
-# ======================================================
-# PROCESSAR TODA A PASTA DE PREDICTIONS
-# ======================================================
+        # common locations
+        candidates = [
+            os.path.join(exp_dir, "edca", "predictions"),
+        ]
 
-def analyze_predictions(predictions_dir, output_file):
+        # also allow fold folders
+        edca_dir = os.path.join(exp_dir, "edca")
+        if os.path.isdir(edca_dir):
+            for sub in os.listdir(edca_dir):
+                if sub.startswith("edca_fold"):
+                    candidates.append(os.path.join(edca_dir, sub, "predictions"))
 
-    files = [f for f in os.listdir(predictions_dir) if f.endswith(".csv")]
+        for pred_dir in candidates:
+            if not os.path.isdir(pred_dir):
+                continue
+            for f in os.listdir(pred_dir):
+                if f.endswith(".csv"):
+                    out.append((exp, os.path.join(pred_dir, f)))
+    return out
 
-    # padrão: edca_all_data_predictions_1.csv
-    pattern = re.compile(r"(.*)_predictions_(\d+)\.csv")
+def analyze_predictions(experiments_root, output_file):
+    found = find_prediction_csvs(experiments_root)
+    if not found:
+        raise FileNotFoundError(f"No prediction CSVs found under: {experiments_root}")
 
+    # group by filename "kind" (everything before .csv), so different prediction files go to different sheets
     grouped = {}
+    for exp_name, csv_path in found:
+        fname = os.path.basename(csv_path)
+        kind = fname.replace(".csv", "")
+        grouped.setdefault(kind, []).append((exp_name, csv_path))
 
-    for file in files:
-        match = pattern.match(file)
-        if match:
-            kind, fold = match.groups()
-            grouped.setdefault(kind, []).append((int(fold), file))
-
+    
+    os.makedirs(os.path.dirname(output_file) or ".", exist_ok=True)
     writer = pd.ExcelWriter(output_file, engine="openpyxl")
 
+
     for kind, entries in grouped.items():
-
         rows = []
-
-        for fold, filename in sorted(entries):
-            csv_path = os.path.join(predictions_dir, filename)
+        for exp_name, csv_path in entries:
             metrics = process_prediction_file(csv_path)
-            metrics["cv"] = f"cv{fold}"
+            metrics["exp"] = exp_name
             rows.append(metrics)
 
-        df = pd.DataFrame(rows).set_index("cv")
+        df = pd.DataFrame(rows).set_index("exp")
 
-        # adicionar mean e std
-        df.loc["mean"] = df.mean()
-        df.loc["std"] = df.std()
+        # mean/std across runs (exp folders)
+        df.loc["mean"] = df.mean(numeric_only=True)
+        df.loc["std"] = df.std(numeric_only=True)
 
-   
         sheet_name = kind[:31]
-        df.to_excel(writer, sheet_name=sheet_name)
+        df.round(3).to_excel(writer, sheet_name=sheet_name)
 
     writer.close()
     print(f"✔ Métricas guardadas em: {output_file}")
 
-
-# ======================================================
-# MAIN
-# ======================================================
-
 if __name__ == "__main__":
+  
+    EXPERIMENTS_ROOT = "../logs/MedViT2-nopt/raw_img_raw_tab/exp2"
+    OUTPUT_FILE = "../results/metrics_predictions_MedViT2_nopt.xlsx"
 
-    PREDICTIONS_DIR = "../logs/exp2/testing/exp2_MedViT-nopt/exp_2026-01-30 14:35:15.722061/edca/predictions"
-
-    OUTPUT_FILE = "metrics_predictions_3.xlsx"
-
-    analyze_predictions(PREDICTIONS_DIR, OUTPUT_FILE)
+    analyze_predictions(EXPERIMENTS_ROOT, OUTPUT_FILE)
