@@ -404,11 +404,14 @@ class EvolutionarySearch:
                 'No time to evaluate the initial Population')
 
         self._logger.info('Evaluate Initial Population')
+        
         try:
+            
             self.population = deepcopy(self._evaluate_population(self.population))
             self.best_fit= self.population[0][1]['fitness']
             self.best_individual = deepcopy(self.population[0][0])
             self.best_fitness_params = deepcopy(self.population[0][1])
+        
         except KeyboardInterrupt:
             raise KeyboardInterrupt('Ctrl-C pressed')
         except TimeBudgetExceeded as e:

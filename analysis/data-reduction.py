@@ -6,10 +6,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from utils import best_individuals_overall
 from visuals import plot_bar_comparison
-from parameters import datasets, frameworks, fairness_parameters, images_dir, experimentation_name, frameworks_palette
+from parameters import datasets, frameworks, fairness_parameters, images_dir, experimentation_name, frameworks_palette, LOGS_ROOT
 import seaborn as sns
-
-
+import os
+import glob
+import json
+import numpy as np
 # %%
 def calculate_dr_occurrence(individuals, normalize=False):
     dr_type = {
@@ -33,27 +35,126 @@ def calculate_dr_occurrence(individuals, normalize=False):
         dr_type = {key: value/total for key, value in dr_type.items()}
     return dr_type
 
+
+def load_reduction_percents_from_run(run_dir, framework="edca"):
+    """
+    run_dir: .../exp3_mlp/exp_...
+    returns dict with sample_%, features_%, data_% for the chosen framework
+    """
+    fp = os.path.join(run_dir, "results.json")
+    if not os.path.isfile(fp):
+        return None
+
+    with open(fp, "r") as f:
+        r = json.load(f)
+
+    info = r.get("run_info", {}).get(framework, {})
+    if not info:
+        return None
+
+    return {
+        "sample_%": info.get("sample_%", np.nan),
+        "features_%": info.get("features_%", np.nan),
+        "data_%": info.get("data_%", np.nan),
+    }
     
 # %%
+LOGS_ROOT = os.path.join("..", "logs", "MedViT2-nopt")
+
 results = {}
 for dataset in datasets:
     dr_per_framework = {}
-    for framework, framework_path in frameworks.items():
-        best_individuals = best_individuals_overall(f'{framework_path}/{dataset}')
-        dr_occurrence = calculate_dr_occurrence(best_individuals, normalize=True)
-        dr_per_framework[framework] = dr_occurrence
-        # plot_bar_comparison(dr_occurrence, title=f'{dataset} DR OCC')
+    exp_dir = os.path.join(LOGS_ROOT, dataset, experimentation_name)
+
+   
+
+    for framework, framework_folder in frameworks.items():
+        all_best = []
+
+        framework_roots = sorted([
+            os.path.join(exp_dir, run_dir, framework_folder)
+            for run_dir in os.listdir(exp_dir)
+            if run_dir.startswith("exp_")
+            and os.path.isdir(os.path.join(exp_dir, run_dir, framework_folder))
+        ])
+       
+
+        for framework_root in framework_roots:
+            all_best.extend(best_individuals_overall(framework_root))
+
+        if not all_best:
+            raise FileNotFoundError(
+                f"No valid runs found for {dataset} / {framework} under {exp_dir} "
+                f"(looked for exp_*/{framework_folder})"
+            )
+
+        dr_per_framework[framework] = calculate_dr_occurrence(all_best, normalize=True)
+
     results[dataset] = dr_per_framework
 
-    
-# %%
-# fig, axs = plt.subplots(ncols=len(datasets), figsize=(len(datasets)*10, 10))
-# for i, dataset in enumerate(sorted(results.keys())):
-#     plot_bar_comparison(results[dataset], title=dataset, highlight_y=fairness_parameters[f'{dataset}.csv']['sensitive_attributes'], ax=axs[i])
-# plt.tight_layout()
-# plt.savefig(f'{images_dir}/{experimentation_name}_dr_occurrence_distribution.pdf', format='pdf')
+reduction_stats = {}  # per dataset dataframe of runs
 
-# %%
+for dataset in datasets:
+    exp_dir = os.path.join(LOGS_ROOT, dataset, experimentation_name)
+    run_dirs = sorted([
+        os.path.join(exp_dir, d)
+        for d in os.listdir(exp_dir)
+        if d.startswith("exp_") and os.path.isdir(os.path.join(exp_dir, d))
+    ])
+
+    rows = []
+    for run_dir in run_dirs:
+        vals = load_reduction_percents_from_run(run_dir, framework="edca")
+        if vals is None:
+            continue
+        rows.append(vals)
+
+    reduction_stats[dataset] = pd.DataFrame(rows)
+
+# Make mean±std tables (one value per dataset)
+def mean_pm_std(series, nd=2):
+    m = np.nanmean(series.values)
+    s = np.nanstd(series.values, ddof=1)
+    return f"{m:.{nd}f}±{s:.{nd}f}"
+
+table_data = []
+table_instances = []
+table_features = []
+
+for dataset in datasets:
+    df = reduction_stats[dataset]
+    table_data.append({"Dataset": dataset, "EDCA": mean_pm_std(df["data_%"])})
+    table_instances.append({"Dataset": dataset, "EDCA": mean_pm_std(df["sample_%"])})
+    table_features.append({"Dataset": dataset, "EDCA": mean_pm_std(df["features_%"])})
+
+df_data = pd.DataFrame(table_data)
+df_instances = pd.DataFrame(table_instances)
+df_features = pd.DataFrame(table_features)
+
+print("\n(a) Percentage of data")
+print(df_data.to_latex(index=False))
+
+print("\n(b) Percentage of instances")
+print(df_instances.to_latex(index=False))
+
+print("\n(c) Percentage of features")
+print(df_features.to_latex(index=False))
+
+fig, axs = plt.subplots(ncols=len(datasets), figsize=(len(datasets)*10, 10))
+
+for i, dataset in enumerate(sorted(results.keys())):
+    plot_bar_comparison(
+        results[dataset],
+        title=dataset,
+        highlight_y=fairness_parameters.get(f'{dataset}.csv', {}).get('sensitive_attributes', []),
+        ax=axs[i]
+    )
+
+plt.tight_layout()
+os.makedirs(images_dir, exist_ok=True) 
+plt.savefig(f'{images_dir}/{experimentation_name}_dr_occurrence_distribution.pdf', format='pdf')
+
+'''# %%
 fig, axs = plt.subplots(ncols=len(datasets),figsize=(len(datasets)*7, 5))
 handles, labels = None, None
 
@@ -61,7 +162,8 @@ for i, dataset in enumerate(sorted(results.keys())):
     plot_bar_comparison(
         results[dataset],
         title=dataset,
-        highlight_y=fairness_parameters[f'{dataset}.csv']['sensitive_attributes'],
+        #highlight_y=fairness_parameters[f'{dataset}.csv']['sensitive_attributes'],
+        highlight_y=fairness_parameters.get(f'{dataset}.csv', {}).get('sensitive_attributes', []),
         ax=axs[i],
         palette=frameworks_palette
     )
@@ -182,3 +284,4 @@ latex_format = df.to_latex(
 )
 
 print(latex_format.replace('±nan', '').replace('NaN', '-'))
+'''

@@ -14,6 +14,7 @@ from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, ExtraTreesClassifier, ExtraTreesRegressor, RandomForestRegressor, AdaBoostRegressor, GradientBoostingRegressor, GradientBoostingClassifier
 from xgboost import XGBClassifier, XGBRegressor
 from lightgbm import LGBMClassifier, LGBMRegressor
+from sklearn.neural_network import MLPClassifier
 
 
 from sklearn import set_config
@@ -34,6 +35,34 @@ def get_float_value(config):
 def get_category_value(config):
     """ selects a categorical value based on the options available """
     return np.random.choice(config['possible_values'])
+
+def get_integer_from_list(config):
+    """ selects an integer from a list of integers """
+    return int(np.random.choice(config['possible_values']))
+
+def get_boolean_value(config=None):
+    """ generates a boolean value with equal probability """
+    return bool(np.random.choice([True, False]))
+
+def get_int_tuple_value(config):
+    """
+    Generates a tuple of hidden layer sizes.
+    Example output: (64, 32) or (128, 64, 32)
+    """
+    n_layers = np.random.randint(config["min_layers"], config["max_layers"] + 1)
+
+   
+    if "possible_values" in config:
+        sizes = [int(np.random.choice(config["possible_values"])) for _ in range(n_layers)]
+    else:
+        sizes = [int(np.random.randint(config["min_value"], config["max_value"] + 1)) for _ in range(n_layers)]
+
+   
+    if config.get("decreasing", False):
+        sizes = sorted(sizes, reverse=True)
+
+    return tuple(sizes)
+
 
 
 def model_parameters_mutation(model_config, model_parameters, prob_mutation):
@@ -67,6 +96,13 @@ def model_parameters_mutation(model_config, model_parameters, prob_mutation):
                 model_config[parameter] = get_float_value(model_parameters[parameter])
             if type_parameter == 'category':
                 model_config[parameter] = get_category_value(model_parameters[parameter])
+            if type_parameter == 'integer_list':
+                model_config[parameter] = get_integer_from_list (model_parameters[parameter])
+            if type_parameter == 'boolean':
+                model_config [parameter] = get_boolean_value (model_parameters[parameter])
+            if type_parameter == 'int_tuple':
+                model_config[parameter] = get_int_tuple_value(model_parameters[parameter])
+
     return model_config
 
 
@@ -153,6 +189,9 @@ def instantiate_model(model_config, seed=42):
 
     elif model_name == 'GradientBoostingRegressor':
         model = GradientBoostingRegressor(**settings, random_state=seed)
+
+    elif model_name == 'MLPClassifier':
+        model = MLPClassifier(**settings, random_state=seed)
 
     else: # model not found
         raise ValueError(f"Model {model_name} not found")

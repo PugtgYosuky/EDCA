@@ -1,32 +1,25 @@
-datasets = ['exp2_MedViT-nopt']
-# datasets = ['adult', 'credit-card', 'portuguese-bank-marketing']
-# frameworks = {
-#     'Baseline' : '../../../../../Volumes/JoSandisk/research/experiments/fairness-aware-edca/cv/edca-mcc-recall-baseline',
-#     'Fairness-Aware' : '../../../../../Volumes/JoSandisk/research/experiments/fairness-aware-edca/cv/edca-fairaware-mcc-recall'
-# }
+import os
 
-
-
-# def rgb255(rgb):
-#     return tuple(c / 255 for c in rgb)
-
-# frameworks_palette = {
-#     'Baseline' : rgb255((60, 60, 60)),
-#     'Fairness-Aware' : rgb255((175, 175, 175))
-# }
 frameworks_palette = {'EDCA': (0.3, 0.3, 0.3)}  # grey
 
 frameworks = {
-    'EDCA': '../logs/exp1/testing/exp2_MedViT-nopt/exp_2026-01-29 15:41:04.605647'
+    'edca': 'edca'
 }
 
-start_name = 'edca'
+#start_name = 'edca'
 
-save_path = '../logs/exp1/testing/exp2_MedViT-nopt/exp_2026-01-29 15:41:04.605647'
+
+save_path = os.path.join('..', 'results/MedViT2-nopt/exp3_mlp')
+if not os.path.exists(save_path):
+    os.makedirs(save_path)
 # save_path = '../tests/experiments/paper-fairness'
 
-experimentation_name = 'exp1-first'
-# experimentation_name = 'fairness-paper'
+experimentation_name = 'exp3_mlp'
+
+LOGS_ROOT = os.path.join('..', 'logs', 'MedViT2-nopt')
+
+datasets = list(sorted(['img_raw_tab','img_proj_tab', 'img_raw_features','3planes_raw_features' ]))
+
 
 images_dir = '../images/exp1-first'
 # images_dir = '../images/fairness-v2'

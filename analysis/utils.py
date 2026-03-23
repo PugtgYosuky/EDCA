@@ -623,7 +623,7 @@ def get_results_df(datasets, frameworks, experimentation_name, checkpoints_path=
             pickle.dump(df_by_framework_dataset, file)
     return df_by_framework_dataset, df_by_dataset
 
-
+'''
 def get_individuals_from_experiment(exp_path):
     """
     Receives the experiment path and retrieves the best individuals
@@ -631,11 +631,53 @@ def get_individuals_from_experiment(exp_path):
     try:
         with open(os.path.join(exp_path, 'results.json')) as file:
             results = json.load(file)
-            individuals = [individual for individual in results['evo_best'] if individual]
+            individuals = [individual for individual in results['best'] if individual]
             return individuals
     except:
         return []
+  '''  
+def get_individuals_from_experiment(exp_path):
+    """
+    Receives a path (either the run root or a subfolder like .../edca)
+    and retrieves the best individual from the run's results.json.
+
+    Your schema:
+      <run_root>/results.json -> run_info -> edca -> best
+    """
+    try:
+        # 1) try results.json in the provided path
+        candidate = os.path.join(exp_path, "results.json")
+
+        # 2) if not there, try one level up (when exp_path is .../edca)
+        if not os.path.isfile(candidate):
+            candidate = os.path.join(os.path.dirname(exp_path), "results.json")
+
+        if not os.path.isfile(candidate):
+            return []
+
+        with open(candidate, "r") as file:
+            results = json.load(file)
+
+        # --- extract best individual dict from your schema
+        best = results.get("run_info", {}).get("edca", {}).get("best", None)
+        if isinstance(best, dict):
+            return [best]
+
+        return []
+    except:
+        return []
     
+def best_individuals_overall(framework_path):
+    # framework_path will be .../exp_.../edca in your loop
+    if os.path.isdir(framework_path):
+        return get_individuals_from_experiment(framework_path)
+
+    individuals = []
+    for exp in sorted(os.listdir(framework_path)):
+        if exp.startswith("exp_"):
+            individuals += get_individuals_from_experiment(os.path.join(framework_path, exp))
+    return individuals
+'''
 def best_individuals_overall(framework_path):
     """
     Outputs all the end pipelines achieved in all the experiments fro the framework path received
@@ -644,7 +686,7 @@ def best_individuals_overall(framework_path):
     for exp in sorted(os.listdir(framework_path)):
         individuals += get_individuals_from_experiment(os.path.join(framework_path, exp))
     return individuals
-
+'''
 
 def get_estimation_data(info):
     """ create a dataframe from the estimators info dictionary """

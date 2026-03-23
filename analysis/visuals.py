@@ -196,7 +196,7 @@ def plot_bar_comparison(per_framework, title='', key='', highlight_y=None, ax=No
                 label.set_color('red')
 
     
-    plt.legend()
+    ax.legend()
     ax.set_xlim([0, 1])
     ax.set_title(title, fontdict={'weight': 'bold', 'size': 16})
     if save_path:

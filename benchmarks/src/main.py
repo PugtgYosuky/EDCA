@@ -25,6 +25,8 @@ set_config(transform_output='pandas')
 DEFAULT_SAVE_DIR = 'logs'
 DEFAULT_DATASETS_SRC_DIR = 'data/datasets'
 
+
+
 # attempt to import served dependent variables
 try:
     from config_variables import SAVE_DIR, DATASETS_SRC_DIR
@@ -106,7 +108,9 @@ def main(config, dataset_name, seed):
         'train_cdd': class_distribution_distance(np.array(y_train.value_counts(normalize=True)), y_train.nunique()),
         'test_cdd': class_distribution_distance(np.array(y_test.value_counts(normalize=True)), y_test.nunique()),
     }
+    
 
+    
     # test evo framework
     train_models(
         results['run_info'],
@@ -146,12 +150,12 @@ def run_config(config_path, datasets_default):
     datasets = config.get('dataset', datasets_default)
 
     # setup seeds
-    #seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283, 28, 298, 557, 309, 822, 569, 825, 185, 574, 325, 844, 90, 219, 864, 872, 618, 747, 365, 237, 767]
-    seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283]
+    seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283, 28, 298, 557, 309, 822, 569, 825, 185, 574, 325, 844, 90, 219, 864, 872, 618, 747, 365, 237, 767]
+    #seeds = [42, 384, 518, 522, 396, 400, 23, 791, 666, 283]
     
     if len(datasets) == 1 and 'deliveries' in datasets[0]:
-        #seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
-        seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890]
+        seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890, 432, 765, 109, 876, 543, 210, 897, 345, 678, 901, 1234, 5678, 9012, 3456, 7890, 2345, 6789, 1263, 4567, 8901]
+        #seeds = [123, 987, 456, 789, 321, 654, 768, 234, 567, 890]
     if config.get('seed', None):
         seeds_to_run = [config['seed']]
     elif config.get('run_all_seeds', False) == False:

@@ -62,7 +62,8 @@ def append_metrics(results, y_test, preds, proba_preds, final_data_size, origina
     results['class_proportions'] = json.dumps(class_proportions)
 
     # calculate metrics
-    f1 = metrics.f1_score(y_test, preds, average='weighted')
+    #f1 = metrics.f1_score(y_test, preds, average='weighted')
+    f1 = metrics.f1_score(y_test, preds, average='macro')
     results['f1'] =  f1
     
     mcc = metrics.matthews_corrcoef(y_test, preds)

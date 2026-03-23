@@ -18,6 +18,7 @@ def calculate_metrics(y_test, y_pred, y_proba_1):
     precision = precision_score(y_test, y_pred, average="weighted", zero_division=1)
     recall = recall_score(y_test, y_pred, average="weighted")
     f1 = f1_score(y_test, y_pred, average="weighted")
+    macro_f1 = f1_score(y_test, y_pred, average="macro")
     matthews = matthews_corrcoef(y_test, y_pred)
 
     conf_matrix = confusion_matrix(y_test, y_pred, labels=[1, 0])
@@ -35,6 +36,7 @@ def calculate_metrics(y_test, y_pred, y_proba_1):
         "precision": precision,
         "recall": recall,
         "f1": f1,
+        "macro_f1": macro_f1,
         "roc_auc": roc_auc,
         "matthews": matthews,
         "tnr": tnr,
@@ -48,8 +50,7 @@ def calculate_metrics(y_test, y_pred, y_proba_1):
 def process_prediction_file(csv_path):
     df = pd.read_csv(csv_path)
 
-    # ---- adapt column names if needed ----
-    # Your earlier file used y_true/y_pred/y_proba_1, but this script expects y_test/y_pred/y_proba_1
+   
     if "y_test" in df.columns:
         y_test = df["y_test"].values
     elif "y_true" in df.columns:
@@ -141,7 +142,7 @@ def analyze_predictions(experiments_root, output_file):
 
 if __name__ == "__main__":
   
-    EXPERIMENTS_ROOT = "../logs/MedViT2-nopt/img_proj_tab/exp1"
-    OUTPUT_FILE = "../results/img_proj_tab/exp1/metrics_predictions_MedViT2_nopt.xlsx"
+    EXPERIMENTS_ROOT = "../logs/MedViT2-nopt/img_proj_tab/exp4"
+    OUTPUT_FILE = "../results/img_proj_tab/exp4/metrics_predictions_MedViT2_nopt.xlsx"
 
     analyze_predictions(EXPERIMENTS_ROOT, OUTPUT_FILE)
