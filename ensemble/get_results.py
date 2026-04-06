@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 
-BASE_DIR = "ensemble/results"
+BASE_DIR = "ensemble/results/exp3_mlp"
 OUTPUT_FILE = os.path.join(BASE_DIR, "results.xlsx")
 
 DATASETS = [
@@ -46,6 +46,7 @@ def load_metrics(metrics_path):
         "Precision": m.get("precision"),
         "Recall": m.get("recall"),
         "F1-score": m.get("f1"),
+        "Macro F1": m.get("f1_macro"),
         "ROC AUC": m.get("roc_auc"),
         "Matthews corrcoef": m.get("matthews"),
         "NPV": npv,
@@ -77,6 +78,7 @@ def build_dataset_table(dataset_dir):
                     "Precision": None,
                     "Recall": None,
                     "F1-score": None,
+                    "Macro F1": None,
                     "ROC AUC": None,
                     "Matthews corrcoef": None,
                     "NPV": None,
@@ -98,6 +100,7 @@ def build_dataset_table(dataset_dir):
         "Precision",
         "Recall",
         "F1-score",
+        "Macro F1",
         "ROC AUC",
         "Matthews corrcoef",
         "NPV",
@@ -116,6 +119,7 @@ def build_dataset_table(dataset_dir):
         "Precision",
         "Recall",
         "F1-score",
+        "Macro F1",
         "ROC AUC",
         "Matthews corrcoef",
         "NPV",

@@ -9,11 +9,11 @@ from sklearn.metrics import (
 )
 
 
-model_preds_path = "../logs/MedViT2-nopt/3planes_raw_features/exp3_mlp/exp_2026-02-27 19:58:56.509844/edca/predictions/edca_predictions_1.csv"
+model_preds_path = "../logs/MedViT2-nopt/3planes_raw_features/exp4/exp_2026-03-24 09:09:42.924309/edca/predictions/edca_predictions_1.csv"
 processo_path = "../data/datasets/MedViT2-nopt/all_data/prospective/PT_external_dataset_processed.csv"
 clinical_path = "../data/datasets/Base_dados_prospetiva.xlsx"
 
-output_root = Path("ensemble/results/3planes_raw_features/edca_selection")
+output_root = Path("ensemble/results/exp4/3planes_raw_features/edca_selection")
 output_root.mkdir(parents=True, exist_ok=True)
 
 clinical_processo_col = "Processo"
@@ -31,6 +31,7 @@ def compute_metrics(y_true, y_pred, y_proba):
         "precision": precision_score(y_true, y_pred, average="weighted", zero_division=1),
         "recall": recall_score(y_true, y_pred, average="weighted"),
         "f1": f1_score(y_true, y_pred, average="weighted"),
+        "f1_macro": f1_score(y_true, y_pred, average="macro"),
         "matthews": matthews_corrcoef(y_true, y_pred),
         "roc_auc": roc_auc_score(y_true, y_proba),
         "tp": int(tp),

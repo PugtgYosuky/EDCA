@@ -248,13 +248,6 @@ def process_run(run_dir, overwrite=False):
         out["feature_names_used"] = cols
         new_results[result_name] = out
 
-    if new_results:
-        results["run_info"].update(new_results)
-        with open(run_dir / "results.json", "w") as f:
-            json.dump(results, f, indent=3)
-        print(f"  Updated results.json with {list(new_results.keys())}")
-    else:
-        print("  No new results written")
 
 
 def process_experiment(experiment_dir, overwrite=False):
@@ -275,5 +268,5 @@ def process_experiment(experiment_dir, overwrite=False):
 
 
 if __name__ == "__main__":
-    experiment_dir = "logs/MedViT2-nopt/3planes_raw_features/exp3_mlp"
+    experiment_dir = "logs/MedViT2-nopt/3planes_raw_features/exp4"
     process_experiment(experiment_dir, overwrite=False)
