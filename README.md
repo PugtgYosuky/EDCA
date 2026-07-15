@@ -108,4 +108,13 @@ Note: Inside most directories there is a *README.md* detailing its content.
   year={2025},
   organization={Springer}
 }
+
+@inproceedings{simoes2026exploring,
+  title={Exploring the impact of fairness-aware criteria in AutoML},
+  author={Sim{\~o}es, Joana and Correia, Jo{\~a}o},
+  booktitle={International Conference on the Applications of Evolutionary Computation (Part of EvoStar)},
+  pages={435--450},
+  year={2026},
+  organization={Springer}
+}
 ```
