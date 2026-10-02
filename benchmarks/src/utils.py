@@ -247,7 +247,7 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
             sensitive_data = pd.DataFrame()
 
         save_predictions(
-            filename=os.path.join(edca_path, 'predictions',f'edca_predictions_{fold+1}.csv'),
+            filename=os.path.join(edca_path, 'predictions',f'edca_predictions_{fold+1}.parquet'),
             y_test=y_test,
             y_preds=edca_preds,
             y_preds_proba=edca_proba_preds
@@ -262,7 +262,7 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
                 y_train=y_train,
                 X_test=X_test,
                 y_test=y_test,
-                save_name=os.path.join(edca_path, 'predictions', f'edca_all_data_predictions_{fold+1}.csv'),
+                save_name=os.path.join(edca_path, 'predictions', f'edca_all_data_predictions_{fold+1}.parquet'),
                 drop_drs=['sample', 'features']
             )
         if config.get('sampling', False):
@@ -273,7 +273,7 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
                 y_train=y_train,
                 X_test=X_test,
                 y_test=y_test,
-                save_name=os.path.join(edca_path, 'predictions', f'edca_all_samples_predictions_{fold+1}.csv'),
+                save_name=os.path.join(edca_path, 'predictions', f'edca_all_samples_predictions_{fold+1}.parquet'),
                 drop_drs=['sample']
             )
         if config.get('feature_selection', False):
@@ -284,7 +284,7 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
                 y_train=y_train,
                 X_test=X_test,
                 y_test=y_test,
-                save_name=os.path.join(edca_path, 'predictions', f'edca_all_features_predictions_{fold+1}.csv'),
+                save_name=os.path.join(edca_path, 'predictions', f'edca_all_features_predictions_{fold+1}.parquet'),
                 drop_drs=['features']
             )
     except KeyboardInterrupt:
@@ -409,7 +409,7 @@ def flaml_train(results, X_train, y_train, X_test, y_test, config, flaml_path, f
             class_proportions=flaml_y.value_counts().to_dict()
         )
         save_predictions(
-            filename=os.path.join(flaml_path, 'predictions',f'flaml_predictions_{fold+1}.csv'),
+            filename=os.path.join(flaml_path, 'predictions',f'flaml_predictions_{fold+1}.parquet'),
             y_test=y_test,
             y_preds=flaml_preds,
             y_preds_proba=flaml_proba_preds
@@ -429,7 +429,7 @@ def flaml_train(results, X_train, y_train, X_test, y_test, config, flaml_path, f
             all_data_preds = y_encoder.inverse_transform(all_data_preds)
 
             save_predictions(
-                filename=os.path.join(flaml_path, 'predictions',f'flaml_all_data_predictions_{fold+1}.csv'),
+                filename=os.path.join(flaml_path, 'predictions',f'flaml_all_data_predictions_{fold+1}.parquet'),
                 y_test=y_test,
                 y_preds=flaml_preds,
                 y_preds_proba=flaml_proba_preds
@@ -628,8 +628,8 @@ def tpot_train(results, X_train, y_train, X_test, y_test, config, tpot_path, fol
             transform_pipeline = fitted_pipeline[:-1]
             X_train_transformed = transform_pipeline.transform(X_train)
             X_test_transformed = transform_pipeline.transform(X_test)
-            X_train_transformed.to_csv(os.path.join(tpot_path, f'transformed_train_data_fold_{fold+1}.csv'))
-            X_test_transformed.to_csv(os.path.join(tpot_path, f'transformed_test_data_fold_{fold+1}.csv'))
+            X_train_transformed.to_parquet(os.path.join(tpot_path, f'transformed_train_data_fold_{fold+1}.parquet'))
+            X_test_transformed.to_parquet(os.path.join(tpot_path, f'transformed_test_data_fold_{fold+1}.parquet'))
         else:
             X_train_transformed = X_train
         # save metrics achieved
@@ -665,7 +665,7 @@ def tpot_train(results, X_train, y_train, X_test, y_test, config, tpot_path, fol
             json.dump(evaluated_individuals, file, cls=NpEncoder, indent=3)
 
         save_predictions(
-            filename=os.path.join(tpot_path, 'predictions',f'tpot_predictions_{fold+1}.csv'),
+            filename=os.path.join(tpot_path, 'predictions',f'tpot_predictions_{fold+1}.parquet'),
             y_test=y_test,
             y_preds=tpot_preds,
             y_preds_proba=tpot_proba_preds
@@ -700,19 +700,19 @@ def train_models(results, X_train, y_train, X_test, y_test, config, path, fold, 
     if config.get('save_data', False):
         train_data = X_train.copy()
         train_data['class'] = y_train
-        train_data.to_csv(
+        train_data.to_parquet(
             os.path.join(
                 path,
                 'data',
-                f'train_data_fold{fold+1}.csv'),
+                f'train_data_fold{fold+1}.parquet'),
             index=False)
         test_data = X_test.copy()
         test_data['class'] = y_test
-        test_data.to_csv(
+        test_data.to_parquet(
             os.path.join(
                 path,
                 'data',
-                f'test_data_fold{fold+1}.csv'),
+                f'test_data_fold{fold+1}.parquet'),
             index=False)
 
     edca_error = False
@@ -810,7 +810,7 @@ def train_models(results, X_train, y_train, X_test, y_test, config, path, fold, 
             y_train=flaml_y,
             X_test=X_test,
             y_test=y_test,
-            save_name=os.path.join(edca_path, 'predictions', f'edca_with_flaml_samples_predictions_{fold+1}.csv')
+            save_name=os.path.join(edca_path, 'predictions', f'edca_with_flaml_samples_predictions_{fold+1}.parquet')
         )
         save_results()
 
@@ -870,7 +870,7 @@ def save_predictions(filename, y_test, y_preds, y_preds_proba, fairness_sensitiv
     predictions_df.insert(1, 'y_pred', list(y_preds))
     if not fairness_sensitive_attributes.empty:
         predictions_df =  pd.concat([predictions_df.reset_index(drop=True), fairness_sensitive_attributes.reset_index(drop=True)],axis=1)
-    predictions_df.to_csv(filename, index=False)
+    predictions_df.to_parquet(filename, index=False)
 
 
 def add_error_results(name, results, y_test):

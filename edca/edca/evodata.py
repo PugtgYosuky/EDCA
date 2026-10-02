@@ -242,32 +242,22 @@ class DataCentricAutoML(BaseEstimator):
         
         bests = pd.DataFrame(self.search_algo.bests_info)
         bests.index = pd.Series(bests.index, name='Iteration') + 1
-        bests.to_csv(os.path.join(self.log_folder_name, 'bests.csv'))
+        bests.to_parquet(os.path.join(self.log_folder_name, 'bests.parquet'))
 
         # save target classes used in sampling / training
         self.internal_y_train.name = 'target_class'
         aux = self.internal_y_train.to_frame()
-        aux.to_csv(os.path.join(self.log_folder_name, 'train_y.csv'))
+        aux.to_parquet(os.path.join(self.log_folder_name, 'train_y.parquet'))
 
         # save internal train and validation data
         aux = self.internal_x_train.copy()
         aux['target_class'] = self.internal_y_train
-        aux.to_csv(os.path.join(self.log_folder_name, 'internal_train_data.csv'))
+        aux.to_parquet(os.path.join(self.log_folder_name, 'internal_train_data.parquet'))
 
         aux = self.internal_x_val.copy()
         aux['target_class'] = self.internal_y_val
-        aux.to_csv(os.path.join(self.log_folder_name, 'internal_val_data.csv'))
+        aux.to_parquet(os.path.join(self.log_folder_name, 'internal_val_data.parquet'))
 
-        if self.error_search == False:
-            # save best data selected
-            aux = self.pipeline_estimator.X_train.copy()
-            aux['target_class'] = self.pipeline_estimator.y_train
-            aux.to_csv(os.path.join(self.log_folder_name, 'best_data.csv'))
-
-            # save best samples data
-            aux_x, aux_y = self.pipeline_estimator.get_best_sample_data()
-            aux_x['target_class'] = aux_y
-            aux_x.to_csv(os.path.join(self.log_folder_name, 'best_sample_data.csv'))
 
         # save pipeline config
         with open(os.path.join(self.log_folder_name, 'pipeline_config.json'), 'w') as file:

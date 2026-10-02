@@ -222,7 +222,7 @@ class EvolutionarySearch:
 
     def save_evaluated_individuals(self):
         """ Saves the evaluated individuals """
-        self._individuals_fitness_df.to_csv(os.path.join(self.filepath,'evaluated_individuals.csv'))
+        self._individuals_fitness_df.to_parquet(os.path.join(self.filepath,'evaluated_individuals.parquet'))
 
     def _save_population(self, filename):
         """ Saves the population of one generation"""
@@ -231,7 +231,7 @@ class EvolutionarySearch:
             population.append(fitness_params)
         df = pd.DataFrame(population)
         df.insert(0, 'individual', list(range(1, len(self.population) + 1)))
-        df.to_csv(os.path.join(self.pops_path, f'Population_generation_{filename}.csv'), index=False)
+        df.to_parquet(os.path.join(self.pops_path, f'Population_generation_{filename}.parquet'), index=False)
 
         # save individuals config
         with open(os.path.join(self.pops_path, f'Populations_config_generation_{filename}.txt'), 'w') as file:
