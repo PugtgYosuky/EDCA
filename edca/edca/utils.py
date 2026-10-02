@@ -10,6 +10,14 @@ def debug_print(*args, **kwargs):
     if DEBUG_MODE:
         print("[DEBUG]", *args, **kwargs)
 
+def sort_dict(d):
+    aux = {}
+    for key, item in d.items():
+        if isinstance(item, dict):
+            aux[key] = sort_dict(item)
+        else:
+            aux[key] = item
+    return aux
 
 def mcc_metric(y_true, y_pred, y_prob=None):
     """ Calculate the Matthews Correlation Coefficient normalized and inverted """

@@ -4,6 +4,7 @@ from operator import itemgetter
 from edca.model import *
 import random
 from copy import deepcopy
+from edca.utils import sort_dict
 
 
 # CROSSOVER
@@ -51,10 +52,10 @@ def uniform_crossover(prob_crossover=0.5, binary_representation=True):
             The two new offsprings with some gene swapped between the two given parents
 
         """
-        offspring_a = indiv_a.copy()
-        offspring_b = indiv_b.copy()
+        offspring_a = deepcopy(indiv_a)
+        offspring_b = deepcopy(indiv_b)
         # only the common keys are considered
-        keys = list(set(offspring_a.keys()) & set(offspring_b.keys()))
+        keys = sorted(list(set(offspring_a.keys()) & set(offspring_b.keys())))
         for i in keys:
             if i == 'sample' or i == 'features':
                 # applies uniform crossover to change the sampling of the
@@ -93,8 +94,8 @@ def points_crossover(binary_representation=True):
             New two offsprings
 
         """
-        offspring_a = indiv_a.copy()
-        offspring_b = indiv_b.copy()
+        offspring_a = deepcopy(indiv_a)
+        offspring_b = deepcopy(indiv_b)
         sample_crossover = crossover_sampling_component(
             uniform_crossover=False, binary_representation=binary_representation)
         # apply crossover to the sample component
@@ -115,9 +116,8 @@ def points_crossover(binary_representation=True):
             offspring_b['features'] = off_sample_b
 
         # only the common keys are considered
-        keys = list(set(offspring_a.keys()) & set(offspring_b.keys()))
-        keys = [key for key in keys if key !=
-                'sample' and key != 'features']
+        keys = sorted(list(set(offspring_a.keys()) & set(offspring_b.keys())))
+        keys = [key for key in keys if key !='sample' and key != 'features']
 
         # iterate over the other components of the individual
         point = np.random.randint(0, len(keys))
@@ -127,7 +127,7 @@ def points_crossover(binary_representation=True):
                 offspring_a[key] = indiv_b[key]
                 offspring_b[key] = indiv_a[key]
 
-        return offspring_a, offspring_b
+        return sort_dict(offspring_a), sort_dict(offspring_b)
     return crossover
 
 # MUTATION
@@ -204,7 +204,7 @@ def mutation_individuals(
         """
         new_individual = individual.copy()
         # selects only one gene to mutate per individual
-        options = set(list(new_individual.keys())) | set(data_options)
+        options = list(sorted(set(list(new_individual.keys())) | set(data_options)))
         key = random.choice(list(options))
 
         if key == 'sample':
@@ -276,7 +276,7 @@ def mutation_individuals(
                 prob_model_mutation=prob_mutation_model,
                 prob_mutation=prob_mutation
             )
-        return new_individual
+        return sort_dict(new_individual)
 
     return mutation
 
@@ -703,8 +703,8 @@ def int_point_crossover(chromosome1, chromosome2):
     while len(chromo1) == 0 or len(chromo2) == 0:
         point_1 = np.random.randint(0, max(1, len(chromosome1) - 1))
         point_2 = np.random.randint(0, max(1, len(chromosome2) - 1))
-        chromo1 = list(set(chromosome1[:point_1] + chromosome2[point_2:]))
-        chromo2 = list(set(chromosome2[:point_2] + chromosome1[point_1:]))
+        chromo1 = list(sorted(set(chromosome1[:point_1] + chromosome2[point_2:])))
+        chromo2 = list(sorted(set(chromosome2[:point_2] + chromosome1[point_1:])))
     return chromo1, chromo2
 
 

@@ -56,7 +56,7 @@ def model_parameters_mutation(model_config, model_parameters, prob_mutation):
     dict
         Gene with mutated hyperparameters
     """
-    for parameter in model_parameters.keys():
+    for parameter in sorted(model_parameters.keys()):
         # iterates over the model hyperparameters and mutates them based on the
         # prob_mutation
         if np.random.random() < prob_mutation:
@@ -74,8 +74,7 @@ def generate_model_code(config):
     """ creates a new model based on the options available"""
     models = list(config.keys())
     model_name = np.random.choice(models)
-    model = {
-        model_name: model_parameters_mutation({}, config[model_name], 1.0)}
+    model = {model_name: model_parameters_mutation({}, config[model_name], 1.0)}
     return model
 
 
@@ -229,7 +228,7 @@ class LabelEncoder3Args(BaseEstimator):
         X = X.copy()
         for column in X.columns:
             le = self.encoders[column]
-            known_classes = set(le.classes_)
+            known_classes = list(sorted(set(le.classes_)))
             X[column] = X[column].apply(lambda val: le.transform([val])[0] if val in known_classes else (len(known_classes)+1))
         return X
 
@@ -307,12 +306,12 @@ def create_preprocessing_pipeline(
     # get features from the pipeline config intersected with the selected features
     
     column_transformer_steps = []
-    numerical_columns = list(set(pipeline_config['numerical_columns']).intersection(set(selected_features)))
-    numerical_with_nans = list(set(pipeline_config['numerical_with_nans']).intersection(set(selected_features)))
-    categorical_columns = list(set(pipeline_config['categorical_columns']).intersection(set(selected_features)))
-    categorical_with_nans = list(set(pipeline_config['categorical_with_nans']).intersection(set(selected_features)))
-    binary_columns = list(set(pipeline_config['binary_columns']).intersection(set(selected_features)))
-    binary_with_nans = list(set(pipeline_config['binary_with_nans']).intersection(set(selected_features)))
+    numerical_columns = list(sorted(set(pipeline_config['numerical_columns']).intersection(set(selected_features))))
+    numerical_with_nans = list(sorted(set(pipeline_config['numerical_with_nans']).intersection(set(selected_features))))
+    categorical_columns = list(sorted(set(pipeline_config['categorical_columns']).intersection(set(selected_features))))
+    categorical_with_nans = list(sorted(set(pipeline_config['categorical_with_nans']).intersection(set(selected_features))))
+    binary_columns = list(sorted(set(pipeline_config['binary_columns']).intersection(set(selected_features))))
+    binary_with_nans = list(sorted(set(pipeline_config['binary_with_nans']).intersection(set(selected_features))))
 
     if len(numerical_columns) > 0:
         # numerical transformer if it has numerical fuatures

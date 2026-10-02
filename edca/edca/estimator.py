@@ -286,10 +286,10 @@ def dataset_analysis(df, numeric_2_categorical_features=None):
             categorical_columns.append(column)
 
     # combines the informations of the nans and type of features to calculate
-    # the features seperated by type with nans
-    numerical_with_nans = list(set(numerical_columns) & set(columns_with_nans))
-    binary_with_nans = list(set(binary_columns) & set(columns_with_nans))
-    categorical_with_nans = list(set(categorical_columns) & set(columns_with_nans))
+    # the features separated by type with nans
+    numerical_with_nans = list(sorted(set(numerical_columns) & set(columns_with_nans)))
+    binary_with_nans = list(sorted(set(binary_columns) & set(columns_with_nans)))
+    categorical_with_nans = list(sorted(set(categorical_columns) & set(columns_with_nans)))
     # create the pipeline config with the types of features separated by
     # characteristics
     pipeline_config = {

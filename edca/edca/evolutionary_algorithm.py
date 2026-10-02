@@ -12,6 +12,7 @@ from edca.encoder import NpEncoder
 from edca.fitness import individual_fitness
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+from edca.utils import sort_dict
 
 WORST_FITNESS = 1
 VERBOSE_SAVE_ALL = -1
