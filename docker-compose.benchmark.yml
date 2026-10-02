@@ -1,12 +1,12 @@
 services:
   experiment:
-    image: edca-lab
-    container_name: edca-benchmark
+    image: edca-v1
+    container_name: edca-v1-paper
 
     volumes:
       - ./benchmarks/configs:/app/configs
       - ./edca/edca:/app/edca
-      - ./data/datasets:/app/data/datasets
+      - ./data/datasets:/app/datasets
       - ./logs:/app/logs
       - ./benchmarks/src:/app/src
 
