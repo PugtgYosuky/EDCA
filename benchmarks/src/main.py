@@ -21,8 +21,8 @@ from datetime import datetime
 from sklearn import set_config
 set_config(transform_output='pandas')
 
-DEFAULT_SAVE_DIR = '.'
-DEFAULT_DATASETS_SRC_DIR = '../datasets'
+DEFAULT_SAVE_DIR = 'logs'
+DEFAULT_DATASETS_SRC_DIR = 'datasets'
 
 # attempt to import served dependent variables
 try:
