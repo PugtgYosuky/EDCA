@@ -354,7 +354,7 @@ def flaml_train(results, X_train, y_train, X_test, y_test, config, flaml_path, f
         early_stop=config.get('early_stop', None)!= None,
         sample=True, #config.get('sampling', True),
         retrain_full=False,#not config.get('sampling', True),
-        split_ration=config.get('validation_size', 0.9),
+        split_ratio=config.get('validation_size', 0.9),
         n_jobs=config.get('n_jobs', 1),
         estimator_list=list(sorted(['lgbm', 'xgboost', 'xgb_limitdepth', 'rf', 'lrl1', 'lrl2', 'kneighbor', 'extra_tree'])),
         seed = config.get('seed', 42),
@@ -567,10 +567,7 @@ def tpot_train(results, X_train, y_train, X_test, y_test, config, tpot_path, fol
         },
         'sklearn.preprocessing.StandardScaler': {
         },
-        'tpot.builtins.OneHotEncoder': {
-            'minimum_fraction': [0.05, 0.1, 0.15, 0.2, 0.25],
-            'sparse': [False],
-            'threshold': [10]
+        'tpot.builtins.OneHotEncoder': {'minimum_fraction': [0.05, 0.1, 0.15, 0.2, 0.25],'sparse': [False],'threshold': [10]
         },
         'lightgbm.LGBMClassifier': {
             'n_estimators': np.arange(4, 1000),
@@ -587,9 +584,7 @@ def tpot_train(results, X_train, y_train, X_test, y_test, config, tpot_path, fol
         classifiers_config.update(feature_selection_config)
 
     settings = {
-        'population_size': config.get(
-            'population',
-            25),
+        'population_size': config.get('population',25),
         'log_file': log_file,
         'scoring': metrics.make_scorer(
             tpot_metric(
@@ -681,10 +676,7 @@ def tpot_train(results, X_train, y_train, X_test, y_test, config, tpot_path, fol
 
         print('>> TPOT: export')
         # save best pipeline
-        tpot_automl.export(
-            os.path.join(
-                tpot_path,
-                f'best_pipeline_fold{fold+1}.py'))
+        tpot_automl.export(os.path.join(tpot_path,f'best_pipeline_fold{fold+1}.py'))
 
     except KeyboardInterrupt:
         raise KeyboardInterrupt('Ctrl-C pressed')
