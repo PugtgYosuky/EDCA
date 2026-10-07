@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-from sklearn.base import BaseEstimator
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import FunctionTransformer
 from sklearn.impute import KNNImputer, SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
@@ -214,22 +213,23 @@ def generate_scaler_code():
 
 class LabelEncoder3Args(BaseEstimator):
     def __init__(self, **kwargs):
-        self.encoders = {}
         self.params = kwargs  # store any passed config if you want
 
     def fit(self, X, y=None):
+        self.encoders_ = {}
         for column in X.columns:
             le = LabelEncoder()
             le.fit(X[column])
-            self.encoders[column] = le
+            self.encoders_[column] = le
         return self
 
     def transform(self, X, y=None):
         X = X.copy()
         for column in X.columns:
-            le = self.encoders[column]
-            known_classes = list(sorted(set(le.classes_)))
-            X[column] = X[column].apply(lambda val: le.transform([val])[0] if val in known_classes else (len(known_classes)+1))
+            le = self.encoders_[column]
+            mapping = {c: i for i, c in enumerate(le.classes_)}
+            unknown_code = len(mapping)  # unseen category
+            X[column] = X[column].map(mapping).fillna(unknown_code).astype(int)
         return X
 
 def round_up(n):
@@ -256,7 +256,7 @@ def encode_numeric(feature_values, encoding_values):
         series.loc[(feature_values >=min_value) & (feature_values <=max_value)] = f'{min_value}-{max_value}'
     return series.tolist()
 
-class NumericEncoder(BaseEstimator):
+class NumericEncoder(BaseEstimator, TransformerMixin):
     """Class to transform a numeric feature into a categorical one"""
     def __init__(self, numeric_encodings):
         """
@@ -306,12 +306,12 @@ def create_preprocessing_pipeline(
     # get features from the pipeline config intersected with the selected features
     
     column_transformer_steps = []
-    numerical_columns = list(sorted(set(pipeline_config['numerical_columns']).intersection(set(selected_features))))
-    numerical_with_nans = list(sorted(set(pipeline_config['numerical_with_nans']).intersection(set(selected_features))))
-    categorical_columns = list(sorted(set(pipeline_config['categorical_columns']).intersection(set(selected_features))))
-    categorical_with_nans = list(sorted(set(pipeline_config['categorical_with_nans']).intersection(set(selected_features))))
-    binary_columns = list(sorted(set(pipeline_config['binary_columns']).intersection(set(selected_features))))
-    binary_with_nans = list(sorted(set(pipeline_config['binary_with_nans']).intersection(set(selected_features))))
+    numerical_columns = list(sorted(set(pipeline_config.get('numerical_columns', [])).intersection(set(selected_features))))
+    numerical_with_nans = list(sorted(set(pipeline_config.get('numerical_with_nans', [])).intersection(set(selected_features))))
+    categorical_columns = list(sorted(set(pipeline_config.get('categorical_columns', [])).intersection(set(selected_features))))
+    categorical_with_nans = list(sorted(set(pipeline_config.get('categorical_with_nans', [])).intersection(set(selected_features))))
+    binary_columns = list(sorted(set(pipeline_config.get('binary_columns', [])).intersection(set(selected_features))))
+    binary_with_nans = list(sorted(set(pipeline_config.get('binary_with_nans', [])).intersection(set(selected_features))))
 
     if len(numerical_columns) > 0:
         # numerical transformer if it has numerical fuatures
@@ -367,7 +367,7 @@ def create_preprocessing_pipeline(
         remainder='drop',
     )
     # add numeric encoder
-    if numeric_encodings:
+    if numeric_encodings is not None:
         pipeline = Pipeline(
             steps=[
                 ('numeric_encoder', NumericEncoder(numeric_encodings=numeric_encodings)),
