@@ -7,12 +7,16 @@ from edca.model import *
 import os
 import json
 from edca.evolutionary_algorithm import EvolutionarySearch
+from edca.random_search import RandomSearch
 from edca.encoder import NpEncoder
 from edca.ea import mutation_individuals, mutation_sampling_component, sample_class_balance_mutation, uniform_crossover, points_crossover, generate_sampling_component
 from edca.estimator import PipelineEstimator, dataset_analysis, get_selected_data
 from datetime import datetime
 from edca.utils import error_metric_function, has_full_coverage
 from edca.model import NumericEncoder
+
+GENETIC_ALGORITHM = 'ga'
+RANDOM_SEARCH = 'random'
 
 class DataCentricAutoML(BaseEstimator):
     """ Main class of the EDCA framework """
@@ -54,6 +58,7 @@ class DataCentricAutoML(BaseEstimator):
             flaml_ms=False,
             fairness_params={},
             optimize_preprocessing=True,
+            search_algorithm_type = 'ga',
             seed=42):
         """
         Initialization of the class
@@ -202,6 +207,7 @@ class DataCentricAutoML(BaseEstimator):
         self.mutation_factor = mutation_factor
         self.log_folder_name = log_folder_name
         self.n_jobs = n_jobs
+        self.search_algorithm_type = search_algorithm_type
         self.patience = patience
         self.early_stop = early_stop
         self.mutation_size_neighborhood = mutation_size_neighborhood
@@ -385,78 +391,100 @@ class DataCentricAutoML(BaseEstimator):
     def _search_algorithm(self, X_train, X_val, y_train, y_val):
         """ Optimisation process to found the best ML pipeline"""
 
-        # select sample mutation
-        if self.class_balance_mutation:
-            class_balance_func = sample_class_balance_mutation(
-                y_train, self.mutation_factor)
-        else:
-            class_balance_func = None
-
-        sampling_mutation_operator = mutation_sampling_component(
-            prob_mutation=self.prob_mutation,
-            dimension=self.sampling_size,
-            binary_representation=self.binary_sampling_component,
-            size_neighborhood=self.mutation_size_neighborhood,
-            max_number_changes=max(1, int(self.sampling_size * self.mutation_percentage_change)),
-            class_balance_func=class_balance_func
-        )
-
-        fs_mutation_operator = mutation_sampling_component(
-            prob_mutation=self.prob_mutation,
-            dimension=self.fs_size,
-            binary_representation=self.binary_sampling_component,
-            size_neighborhood=self.mutation_size_neighborhood,
-            max_number_changes=max(1, int(self.fs_size * self.mutation_percentage_change)),
-            class_balance_func=None
-
-        )
-
-        # select crossover operator
-        if self.uniform_crossover:
-            crossover_operator = uniform_crossover(binary_representation=self.binary_sampling_component)
-        else:
-            crossover_operator = points_crossover(binary_representation=self.binary_sampling_component)
-
         sampling_generator = generate_sampling_component(binary_representation=self.binary_sampling_component)
 
-        mutation_operator = mutation_individuals(
-            prob_mutation=self.prob_mutation,
-            prob_mutation_model=self.prob_mutation_model,
-            config=self.config_models,
-            sample_mutation_operator=sampling_mutation_operator,
-            fs_mutation_operator=fs_mutation_operator,
-            pipeline_config=self.pipeline_config,
-            data_generator = sampling_generator
-        )
-
         # search the best pipeline
-        self.search_algo = EvolutionarySearch(
-            config_models=self.config_models,
-            pipeline_config=self.pipeline_config,
-            mutation_operator=mutation_operator,
-            crossover_operator=crossover_operator,
-            sampling_generator=sampling_generator,
-            prob_mutation=self.prob_mutation,
-            prob_mutation_model=self.prob_mutation_model,
-            prob_crossover=self.prob_crossover,
-            population_size=self.population_size,
-            tournament_size=self.tournament_size,
-            elitism=self.elitism_size,
-            num_iterations=self.n_iterations,
-            time_budget=self.time_budget,
-            filepath=self.log_folder_name,
-            X_train=X_train,
-            X_val=X_val,
-            y_train=y_train,
-            y_val=y_val,
-            fitness_metric=self.metric,
-            n_jobs=self.n_jobs,
-            patience=self.patience,
-            early_stop=self.early_stop,
-            verbose=self.verbose
-        )
+        if self.search_algorithm_type == GENETIC_ALGORITHM:
+            # select sample mutation
+            if self.class_balance_mutation:
+                class_balance_func = sample_class_balance_mutation(
+                    y_train, self.mutation_factor)
+            else:
+                class_balance_func = None
+            sampling_mutation_operator = mutation_sampling_component(
+                prob_mutation=self.prob_mutation,
+                dimension=self.sampling_size,
+                binary_representation=self.binary_sampling_component,
+                size_neighborhood=self.mutation_size_neighborhood,
+                max_number_changes=max(1, int(self.sampling_size * self.mutation_percentage_change)),
+                class_balance_func=class_balance_func
+            )
 
-        self.search_algo.evolutionary_algorithm()
+            fs_mutation_operator = mutation_sampling_component(
+                prob_mutation=self.prob_mutation,
+                dimension=self.fs_size,
+                binary_representation=self.binary_sampling_component,
+                size_neighborhood=self.mutation_size_neighborhood,
+                max_number_changes=max(1, int(self.fs_size * self.mutation_percentage_change)),
+                class_balance_func=None
+
+            )
+            # select crossover operator
+            if self.uniform_crossover:
+                crossover_operator = uniform_crossover(binary_representation=self.binary_sampling_component)
+            else:
+                crossover_operator = points_crossover(binary_representation=self.binary_sampling_component)
+            mutation_operator = mutation_individuals(
+                prob_mutation=self.prob_mutation,
+                prob_mutation_model=self.prob_mutation_model,
+                config=self.config_models,
+                sample_mutation_operator=sampling_mutation_operator,
+                fs_mutation_operator=fs_mutation_operator,
+                pipeline_config=self.pipeline_config,
+                data_generator = sampling_generator
+            )
+            self.search_algo = EvolutionarySearch(
+                config_models=self.config_models,
+                pipeline_config=self.pipeline_config,
+                mutation_operator=mutation_operator,
+                crossover_operator=crossover_operator,
+                sampling_generator=sampling_generator,
+                prob_mutation=self.prob_mutation,
+                prob_mutation_model=self.prob_mutation_model,
+                prob_crossover=self.prob_crossover,
+                population_size=self.population_size,
+                tournament_size=self.tournament_size,
+                elitism=self.elitism_size,
+                num_iterations=self.n_iterations,
+                time_budget=self.time_budget,
+                filepath=self.log_folder_name,
+                X_train=X_train,
+                X_val=X_val,
+                y_train=y_train,
+                y_val=y_val,
+                fitness_metric=self.metric,
+                n_jobs=self.n_jobs,
+                patience=self.patience,
+                early_stop=self.early_stop,
+                verbose=self.verbose
+            )
+
+            self.search_algo.evolutionary_algorithm()
+            
+        elif self.search_algorithm_type == RANDOM_SEARCH:
+            self.search_algo = RandomSearch(
+                config_models=self.config_models,
+                pipeline_config=self.pipeline_config,
+                sampling_generator=sampling_generator,
+                population_size=self.population_size,
+                num_iterations=self.n_iterations,
+                time_budget=self.time_budget,
+                filepath=self.log_folder_name,
+                X_train=X_train,
+                X_val=X_val,
+                y_train=y_train,
+                y_val=y_val,
+                fitness_metric=self.metric,
+                n_jobs=self.n_jobs,
+                early_stop=self.early_stop,
+                verbose=self.verbose,
+                seed=self.seed
+            )
+
+            self.search_algo.random_search()
+            
+        else:
+            raise TypeError(f'Search algorithm -{self.search_algorithm_type}- not recognized')
 
 
     def predict(self, X):

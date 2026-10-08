@@ -20,7 +20,7 @@ import openml
 # autoML frameworks
 from flaml import AutoML
 from tpot import TPOTClassifier
-from edca.evodata import DataCentricAutoML
+from edca.evodata import DataCentricAutoML, GENETIC_ALGORITHM
 # setup sklearn to use pandas.DataFrame as output
 from sklearn import set_config
 set_config(transform_output='pandas')
@@ -155,6 +155,7 @@ def retrain_edca_from_data(name, automl, X_train, y_train, X_test, y_test, save_
         fairness_params=automl.fairness_params
     )
     framework_results['best_pipeline_time'] = pipeline_estimator.train_time
+    framework_results['best_solution_consumption'] = pipeline_estimator.get_tracker_profiler_info_agg()
     save_predictions(
         filename=save_name,
         y_test=y_test,
@@ -207,7 +208,8 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
         mutation_size_neighborhood=config.get('mutation_size_neighborhood', 10),
         mutation_percentage_change=config.get('mutation_percentage_change', 0.1),
         search_space_config=config.get('search_space_config', None),
-        flaml_ms=config.get('flaml_ms', False)
+        search_algorithm_type=config.get('search_algorithm_type', GENETIC_ALGORITHM),
+        flaml_ms=config.get('flaml_ms', False),
     )
 
     try:

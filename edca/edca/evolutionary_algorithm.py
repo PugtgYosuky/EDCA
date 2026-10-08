@@ -30,7 +30,7 @@ def sort_dict(d):
     return aux
 
 class EvolutionarySearch:
-    """ Aplies the evolutionary algorithm to find the best ML pipeline """
+    """ Applies the evolutionary algorithm to find the best ML pipeline """
 
     def __init__(self,
             config_models,
