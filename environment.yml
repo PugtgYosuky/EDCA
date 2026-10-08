@@ -22,3 +22,5 @@ dependencies:
     - optuna==3.4.0
     - optunahub==0.4.0
     - xgboost==3.0.5
+    - codecarbon
+    - memory-profiler
