@@ -215,13 +215,13 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
         end = time.time()  # end counter
         framework_results = {}
         framework_results['time'] = end - start
-        framework_results['best_pipeline_time'] = edca_automl.pipeline_estimator.train_time
         framework_results['num_iterations'] = edca_automl.search_algo.get_number_iterations()
         framework_results['num_pipelines_tested'] = edca_automl.search_algo.get_number_pipelines_tested()
         framework_results['best'] = edca_automl.best_individual
 
         edca_preds = edca_automl.predict(X_test)  # predictions
         edca_proba_preds = edca_automl.predict_proba(X_test)  # prediction probabilities
+        framework_results['best_solution_consumption'] = edca_automl.pipeline_estimator.get_tracker_profiler_info_agg()
 
         _, final_y = edca_automl.get_final_data()
         final_data_shape = edca_automl.get_selected_data_shape()

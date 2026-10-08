@@ -4,7 +4,7 @@ from edca.estimator import PipelineEstimator
 from edca.utils import class_distribution_distance, fairness_metric
 import pandas as pd
 from sklearn import metrics
-from edca.utils import debug_print, DEBUG_MODE
+from edca.utils import debug_print, DEBUG_MODE, flatten_dict, round_decimal
 
 from sklearn import set_config
 set_config(transform_output='pandas')
@@ -108,7 +108,7 @@ def individual_fitness(
             + pipeline_config['fitness_params']['fairness_metric'] * (fairness if fairness is not None else 1)
         
         fitness_params =  {
-            'fitness' : round(fitness_value, 3),
+            'fitness' : round_decimal(fitness_value, 3),
             'search_metric' : pred_metric,
             'train_percentage' : train_percentage,
             'time_cpu' : cpu_time,
@@ -119,10 +119,9 @@ def individual_fitness(
             'fairness_metric' : fairness,
 
             'individual_id' : individual_id,
-            'data_processing_time' : pipeline_estimator.data_processing_time,
-            'model_training_time' : pipeline_estimator.model_training_time,
-            'prediction_time' : pipeline_estimator.prediction_time
         }
+        # update with profiler time
+        fitness_params.update(flatten_dict(pipeline_estimator.get_tracker_profiler_info_agg()))
         if y_val.nunique()==2:
             tn, fp, fn, tp = metrics.confusion_matrix(y_val, preds).ravel()
             cm = {

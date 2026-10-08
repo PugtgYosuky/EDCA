@@ -586,9 +586,6 @@ class EvolutionarySearch:
         """ Returns the number of pipelines tested. Equals to the num generations * population size """
         return self.iteration * len(self.population) + len(self.population_evaluated)
     
-
-
-    
 def sort_population(population):
         population.sort(key=lambda x: x[1]['fitness'], reverse=False)
         return population

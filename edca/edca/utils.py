@@ -1,6 +1,8 @@
+import itertools
+
 from sklearn import metrics
 import numpy as np
-from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference, equal_opportunity_difference
+# from fairlearn.metrics import demographic_parity_difference, equalized_odds_difference, equal_opportunity_difference
 import pandas as pd
 
 # for debug mode
@@ -9,6 +11,24 @@ DEBUG_MODE = os.getenv("DEBUG", "0") == "1"
 def debug_print(*args, **kwargs):
     if DEBUG_MODE:
         print("[DEBUG]", *args, **kwargs)
+
+import math
+def round_decimal(x, sig=4):
+    if x == 0:
+        return 0
+    return round(x, sig - int(math.floor(math.log10(abs(x)))) - 1)
+
+def sum_dict(dicts):
+    keys = list(set(list(itertools.chain.from_iterable(dicts))))
+    res = {}
+    for key in keys:
+        res[key] = 0
+        for info in dicts:
+            res[key] += info.get(key, 0)
+    return res
+
+def flatten_dict(info):
+    return {f'{key}_{ikey}' : ival for key, values in info.items() for ikey, ival in values.items()}
 
 def sort_dict(d):
     aux = {}

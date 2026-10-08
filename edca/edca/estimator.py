@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from sklearn.base import BaseEstimator
 import numpy as np
 from edca.model import create_preprocessing_pipeline, instantiate_model, NumericEncoder
@@ -12,8 +14,10 @@ import time
 # setup config
 from sklearn import set_config
 set_config(transform_output='pandas')
+from edca.utils import sum_dict, round_decimal
 
-from edca.utils import debug_print
+from memory_profiler import memory_usage
+from codecarbon import EmissionsTracker
 
 
 class PipelineEstimator(BaseEstimator):
@@ -55,29 +59,38 @@ class PipelineEstimator(BaseEstimator):
         self.data_processing_time = None
         self.train_time = None # all the time spent in training the model (model training time + data processing time)
         self.prediction_time = None # time spent in predicting the model
+        # other params
         self.fairness_params = fairness_params
         self.pipeline = None
 
-    def fit(self, X, y, seed=42):
-        """
-        Train the individual / pipeline based on the received data
+        # store energy consumption, memory and time costs
+        self.profile_tracker = {}
+        self._track_consumption = True
 
-        Selects the data to use, in case of applying sampling. If the pipeline_config parameters is null,
-        it analysis the dataset to see which pipeline is required. It instantiate the pipeline and trains it.
+    def _profile_execution(self, stage, func, *args, **kwargs):
+        """Helper function to track consumption"""
+        tracker = EmissionsTracker(save_to_file=False, log_level="error")
+        # start tracking
+        tracker.start()
+        start_wall = time.perf_counter()
+        start_cpu = time.process_time()
 
-        Parameters:
-        ----------
-        X : pandas.DataFrame
-            Data / features to train the pipeline
+        # run function while sampling RAM usage
+        mem_samples, func_result = memory_usage((lambda: func(*args, **kwargs), ()), retval=True, interval=0.01)
+        # collect info
+        wall_time = time.perf_counter() - start_wall
+        cpu_time = time.process_time() - start_cpu
+        energy_kwh = tracker.stop()
+        self.profile_tracker[stage] = {
+            'wall_time' : round_decimal(wall_time),
+            'cpu_time' : round_decimal(cpu_time),
+            'energy_kwh' : round_decimal(energy_kwh),
+            'energy_consumption' : round_decimal(tracker.final_emissions_data.cpu_energy),
+            'peak_ram_mb' : round_decimal(max(mem_samples) - min(mem_samples))
+        }
+        return func_result
 
-        y : pandas.Series
-            Target column
-
-        Returns:
-        -------
-            self
-        """
-        # analyse dataset if pipeline config is null
+    def _fit_preprocessing(self, X, y, seed):
         if self.pipeline_config is None:
             self.pipeline_config = dataset_analysis(X)
             self.pipeline_config['seed'] = seed
@@ -88,9 +101,7 @@ class PipelineEstimator(BaseEstimator):
         self.y_train = y.copy()
         
         # start data processing
-        start_time = time.time()
         self.X_train, self.y_train, self.selected_features = get_selected_data(self.X_train, self.y_train, self.individual_config)
-
         # create preprocessing pipeline
         if self.pipeline_config['make_preprocessing']:
             self.pipeline = create_preprocessing_pipeline(
@@ -106,12 +117,9 @@ class PipelineEstimator(BaseEstimator):
         if self.pipeline_config['task'] == 'classification':
             self.y_encoder = LabelEncoder()
             self.y_train_encoded = self.y_encoder.fit_transform(self.y_train)
-        
-        # end data processing
-        self.data_processing_time = time.time() - start_time
 
-        # create the model
-        start_time = time.time()
+    def _fit_model(self):
+        """helper for model training during fit"""
         if self.pipeline_config.get('flaml_ms', False) == False:
             self.model = instantiate_model(self.individual_config.get('model'), seed=self.pipeline_config.get('seed'))
             self.model.fit(np.array(self.X_train_transformed), self.y_train_encoded)
@@ -147,10 +155,45 @@ class PipelineEstimator(BaseEstimator):
                 
             self.model = AutoML(**settings)
             self.model.fit(X_train=self.X_train_transformed, y_train=self.y_train_encoded, seed=self.pipeline_config['seed'])
-        
-        self.model_training_time = time.time() - start_time
-        self.train_time = self.model_training_time + self.data_processing_time
+
+    def fit(self, X, y, seed=42):
+        """
+        Train the individual / pipeline based on the received data
+
+        Selects the data to use, in case of applying sampling. If the pipeline_config parameters is null,
+        it analysis the dataset to see which pipeline is required. It instantiate the pipeline and trains it.
+
+        Parameters:
+        ----------
+        X : pandas.DataFrame
+            Data / features to train the pipeline
+
+        y : pandas.Series
+            Target column
+
+        Returns:
+        -------
+            self
+        """
+        if self._track_consumption:
+            self._profile_execution('preprocessing', self._fit_preprocessing, X, y, seed)
+            self._profile_execution('model_fit', self._fit_model)
+        else:
+            self._fit_preprocessing(X, y, seed=seed)
+            self._fit_model()
+                
         return self
+
+    def _predict_internal(self, X):
+        X_test = X.copy()
+        X_test = X_test[self.selected_features]
+        if self.pipeline is not None and self.pipeline_config['make_preprocessing']:
+            X_test = self.pipeline.transform(X_test)
+        preds = self.model.predict(np.array(X_test))
+        # decode the target class for classification tasks
+        if self.pipeline_config['task'] == 'classification':
+            preds = self.y_encoder.inverse_transform(preds)
+        return preds
 
     def predict(self, X):
         """
@@ -169,17 +212,18 @@ class PipelineEstimator(BaseEstimator):
                 predictions
         """
         # start prediction time
-        start_time = time.time()
+        if self._track_consumption:
+            preds = self._profile_execution('predict', self._predict_internal, X)
+        else:
+            preds = self._predict_internal(X)
+        return preds
+
+    def _predict_proba_internal(self, X):
         X_test = X.copy()
         X_test = X_test[self.selected_features]
         if self.pipeline is not None and self.pipeline_config['make_preprocessing']:
             X_test = self.pipeline.transform(X_test)
-        preds = self.model.predict(np.array(X_test))
-        # decode the target class for classification tasks
-        if self.pipeline_config['task'] == 'classification':
-            preds = self.y_encoder.inverse_transform(preds)
-        self.prediction_time = time.time() - start_time
-        return preds
+        return self.model.predict_proba(np.array(X_test))
 
     def predict_proba(self, X):
         """
@@ -197,11 +241,11 @@ class PipelineEstimator(BaseEstimator):
             numpy.array
                 predictions
         """
-        X_test = X.copy()
-        X_test = X_test[self.selected_features]
-        if self.pipeline is not None and self.pipeline_config['make_preprocessing']:
-            X_test = self.pipeline.transform(X_test)
-        return self.model.predict_proba(np.array(X_test))
+        if self._track_consumption:
+            preds_proba = self._profile_execution('predict_proba', self._predict_proba_internal, X)
+        else:
+            preds_proba = self._predict_proba_internal(X)
+        return preds_proba
 
     def get_best_sample_data(self):
         if 'sample' in self.individual_config:
@@ -219,6 +263,16 @@ class PipelineEstimator(BaseEstimator):
         else:
             return self.X, self.y
 
+    def get_tracker_profiler_info(self):
+        return self.profile_tracker
+    
+    def get_tracker_profiler_info_agg(self):
+        info = deepcopy(self.profile_tracker)
+        info.update({
+            'training' : sum_dict([self.profile_tracker.get('preprocessing', {}) or {}, self.profile_tracker.get('model_fit', {}) or {}]),
+            'inference' : sum_dict([self.profile_tracker.get('predict', {}) or {}, self.profile_tracker.get('predict_proba', {}) or {}])
+        })
+        return info
 
 def get_selected_data(X_train, y_train, individual_config):
     # select samples to use in training
