@@ -332,17 +332,24 @@ def generate_individual(config, pipeline_config, sampling_generator):
             individual['data_augmentation'] = generate_model_code(config['data_augmentation'])
     # add preprocessing
     if pipeline_config['make_preprocessing']:
-        if len(pipeline_config['numerical_with_nans']) > 0:
+        if pipeline_config['tailored_preprocessing']:
+            if len(pipeline_config['numerical_with_nans']) > 0:
+                individual['numerical-imputer'] = generate_model_code(config['numerical-imputer'])
+
+            if len(pipeline_config['categorical_with_nans']) > 0 or len(
+                    pipeline_config['binary_with_nans']) > 0:
+                individual['categorical-imputer'] = generate_model_code(config['categorical-imputer'])
+
+            if len(pipeline_config['numerical_columns']) > 0:
+                individual['scaler'] = generate_scaler_code()
+
+            if len(pipeline_config['categorical_columns']) > 0:
+                individual['encoder'] = generate_model_code(config['encoder'])
+        else:
+            # use extended search space without data-characteristics based reductions
             individual['numerical-imputer'] = generate_model_code(config['numerical-imputer'])
-
-        if len(pipeline_config['categorical_with_nans']) > 0 or len(
-                pipeline_config['binary_with_nans']) > 0:
             individual['categorical-imputer'] = generate_model_code(config['categorical-imputer'])
-
-        if len(pipeline_config['numerical_columns']) > 0:
             individual['scaler'] = generate_scaler_code()
-
-        if len(pipeline_config['categorical_columns']) > 0:
             individual['encoder'] = generate_model_code(config['encoder'])
 
     # FLAML for HPO

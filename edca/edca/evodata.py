@@ -58,6 +58,7 @@ class DataCentricAutoML(BaseEstimator):
             flaml_ms=False,
             fairness_params={},
             optimize_preprocessing=True,
+            tailored_preprocessing=True,
             search_algorithm_type = 'ga',
             seed=42):
         """
@@ -214,6 +215,7 @@ class DataCentricAutoML(BaseEstimator):
         self.mutation_percentage_change = mutation_percentage_change
         self.retrain_all_data = retrain_all_data
         self.optimize_preprocessing = optimize_preprocessing
+        self.tailored_preprocessing = tailored_preprocessing
         self.flaml_ms = flaml_ms
         self.search_space_config = search_space_config
 
@@ -315,6 +317,7 @@ class DataCentricAutoML(BaseEstimator):
         self.pipeline_config['task'] = self.task
         self.pipeline_config['seed'] = self.seed
         self.pipeline_config['fairness_params'] = self.fairness_params
+        self.pipeline_config['tailored_preprocessing'] = self.tailored_preprocessing
         if self.fairness_params:
             # analyse if it has full coverage for the validation data to calculate the fairness metrics without errors
             self.pipeline_config['fairness_params']['full_coverage'] = has_full_coverage(
