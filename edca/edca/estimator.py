@@ -65,29 +65,45 @@ class PipelineEstimator(BaseEstimator):
 
         # store energy consumption, memory and time costs
         self.profile_tracker = {}
-        self._track_consumption = True
+        self._track_consumption = False
 
     def _profile_execution(self, stage, func, *args, **kwargs):
         """Helper function to track consumption"""
-        tracker = EmissionsTracker(save_to_file=False, log_level="error")
         # start tracking
-        tracker.start()
-        start_wall = time.perf_counter()
-        start_cpu = time.process_time()
+        if self._track_consumption:
+            tracker = EmissionsTracker(save_to_file=False, log_level="error")
+            tracker.start()
+            start_wall = time.perf_counter()
+            start_cpu = time.process_time()
 
-        # run function while sampling RAM usage
-        mem_samples, func_result = memory_usage((lambda: func(*args, **kwargs), ()), retval=True, interval=0.01)
-        # collect info
-        wall_time = time.perf_counter() - start_wall
-        cpu_time = time.process_time() - start_cpu
-        energy_kwh = tracker.stop()
-        self.profile_tracker[stage] = {
-            'wall_time' : round_decimal(wall_time),
-            'cpu_time' : round_decimal(cpu_time),
-            'energy_kwh' : round_decimal(energy_kwh),
-            'energy_consumption' : round_decimal(tracker.final_emissions_data.cpu_energy),
-            'peak_ram_mb' : round_decimal(max(mem_samples) - min(mem_samples))
-        }
+            # run function while sampling RAM usage
+            try:
+                mem_samples, func_result = memory_usage((lambda: func(*args, **kwargs), ()), retval=True, interval=0.01)
+            finally:
+                co2_energy_kg = tracker.stop()
+            # collect info
+            wall_time = time.perf_counter() - start_wall
+            cpu_time = time.process_time() - start_cpu
+            
+            self.profile_tracker[stage] = {
+                'wall_time' : round_decimal(wall_time),
+                'cpu_time' : round_decimal(cpu_time),
+                'energy_kwh' : round_decimal(co2_energy_kg),
+                'energy_consumption' : round_decimal(tracker.final_emissions_data.cpu_energy),
+                'peak_ram_mb' : round_decimal(max(mem_samples) - min(mem_samples))
+            }
+        else:
+            start_wall = time.perf_counter()
+            start_cpu = time.process_time()
+            # run function while sampling RAM usage
+            func_result = func(*args, **kwargs)
+            # collect info
+            wall_time = time.perf_counter() - start_wall
+            cpu_time = time.process_time() - start_cpu
+            self.profile_tracker[stage] = {
+                'wall_time' : round_decimal(wall_time),
+                'cpu_time' : round_decimal(cpu_time),
+            }
         return func_result
 
     def _fit_preprocessing(self, X, y, seed):
