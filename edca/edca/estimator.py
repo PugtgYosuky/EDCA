@@ -191,12 +191,8 @@ class PipelineEstimator(BaseEstimator):
         -------
             self
         """
-        if self._track_consumption:
-            self._profile_execution('preprocessing', self._fit_preprocessing, X, y, seed)
-            self._profile_execution('model_fit', self._fit_model)
-        else:
-            self._fit_preprocessing(X, y, seed=seed)
-            self._fit_model()
+        self._profile_execution('preprocessing', self._fit_preprocessing, X, y, seed)
+        self._profile_execution('model_fit', self._fit_model)
                 
         return self
 
@@ -228,10 +224,7 @@ class PipelineEstimator(BaseEstimator):
                 predictions
         """
         # start prediction time
-        if self._track_consumption:
-            preds = self._profile_execution('predict', self._predict_internal, X)
-        else:
-            preds = self._predict_internal(X)
+        preds = self._profile_execution('predict', self._predict_internal, X)
         return preds
 
     def _predict_proba_internal(self, X):
@@ -257,10 +250,7 @@ class PipelineEstimator(BaseEstimator):
             numpy.array
                 predictions
         """
-        if self._track_consumption:
-            preds_proba = self._profile_execution('predict_proba', self._predict_proba_internal, X)
-        else:
-            preds_proba = self._predict_proba_internal(X)
+        preds_proba = self._profile_execution('predict_proba', self._predict_proba_internal, X)
         return preds_proba
 
     def get_best_sample_data(self):
