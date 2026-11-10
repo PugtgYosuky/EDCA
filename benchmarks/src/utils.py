@@ -209,6 +209,7 @@ def edca_train(results, X_train, y_train, X_test, y_test, config, edca_path, fol
         mutation_percentage_change=config.get('mutation_percentage_change', 0.1),
         search_space_config=config.get('search_space_config', None),
         search_algorithm_type=config.get('search_algorithm_type', GENETIC_ALGORITHM),
+        tailored_preprocessing=config.get('tailored_preprocessing', True),
         flaml_ms=config.get('flaml_ms', False),
     )
 
