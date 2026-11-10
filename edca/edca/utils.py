@@ -32,11 +32,11 @@ def flatten_dict(info):
 
 def sort_dict(d):
     aux = {}
-    for key, item in d.items():
-        if isinstance(item, dict):
-            aux[key] = sort_dict(item)
+    for key in sorted(d.keys()):
+        if isinstance(d[key], dict):
+            aux[key] = sort_dict(d[key])
         else:
-            aux[key] = item
+            aux[key] = d[key]
     return aux
 
 def mcc_metric(y_true, y_pred, y_prob=None):
